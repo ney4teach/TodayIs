@@ -212,14 +212,14 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .card[data-id="bookmarks"] { container: bookmarks / size }
 .card[data-id="bookmarks"] .inside {
   display:grid; grid-template: minmax(0,1fr) / minmax(0,1fr);
-  padding:min(8px,8cqw,8cqh); gap:0; overflow:clip;
+  padding:min(18px,5cqmin); gap:0; overflow:clip;
 }
 .card[data-id="bookmarks"] .inside:has(> .cap) {
-  grid-template-rows:auto minmax(0,1fr);
+  grid-template-rows:auto minmax(0,1fr); gap:min(6px,2cqmin);
 }
 .bookmark-folder-grid {
   grid-template-columns:repeat(var(--square),minmax(0,1fr));
-  grid-auto-rows:minmax(0,1fr); min-height:0; gap:0;
+  grid-auto-rows:minmax(0,1fr); min-height:0; gap:min(6px,var(--folder-gap));
 }
 @container bookmarks (min-aspect-ratio: 2/1) {
   .bookmark-folder-grid { grid-template-columns:repeat(var(--wide),minmax(0,1fr)) }
@@ -241,7 +241,7 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 }
 .bookmark-panel {
   display:grid; flex:1; min-height:0; grid-auto-rows:minmax(0,1fr);
-  gap:min(1.2cqw,1.8cqh,8px);
+  gap:min(12px,3cqmin);
 }
 @container bookmarks (min-aspect-ratio: 2/1) {
   .bookmark-panel { grid-template-columns:repeat(min(2,var(--themes)),minmax(0,1fr)) }
@@ -251,23 +251,30 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 }
 .bookmark-panel > .bookmark-theme {
   container: bookmark-group / size; min-width:0; min-height:0;
-  display:flex; flex-direction:column; border:0; padding:0; background:var(--field); border-radius:8px;
+  display:flex; flex-direction:column; border:0; padding:min(8px,1.4cqmin);
+  background:var(--field); border-radius:12px;
 }
-.bookmark-panel .bookmark-theme-heading { padding:0 5px; height:min(22px,30cqh) }
-.bookmark-panel h3 { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px }
+.bookmark-panel .bookmark-theme-heading { padding-inline:min(6px,2cqw); flex:none; height:22px }
+.bookmark-panel h3 { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px; font-weight:600; color:var(--muted) }
 .bookmark-panel .bookmark-grid {
   flex:1; min-height:0; margin:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
-  grid-template-rows:minmax(0,1fr); gap:0;
+  grid-template-rows:minmax(0,1fr); gap:min(8px,2cqw,4cqh);
 }
-.bookmark-panel .bookmark-tile { container-type:size; min-height:0; padding:0; gap:2px; justify-content:center }
+.bookmark-panel .bookmark-tile { container: bookmark-tile / size; min-height:0; padding:0; gap:2px; justify-content:center }
 .bookmark-panel .bookmark-mark { width:min(88cqw,60cqh,40px); height:min(88cqw,60cqh,40px); font-size:min(48cqw,40cqh,18px) }
 .bookmark-panel .bookmark-mark.loaded { font-size:0 }
 .bookmark-panel .bookmark-mark img { width:78%; height:78% }
 .bookmark-panel .bookmark-label { line-height:15px; font-size:12px; padding-inline:2px }
-@container bookmark-group (max-height:65px) or (max-width:175px) {
+@container bookmark-tile (max-height:54px) or (max-width:54px) {
   .bookmark-panel .bookmark-label { display:none }
   .bookmark-panel .bookmark-mark { width:min(90cqw,90cqh,38px); height:min(90cqw,90cqh,38px) }
 }
-@container bookmark-group (max-height:40px) or (max-width:105px) {
+@container bookmark-group (max-height:52px) or (max-width:105px) {
   .bookmark-panel .bookmark-theme-heading { display:none }
+}
+.bookmark-panel .bookmark-tile:focus-visible,
+.bookmark-folder-grid .bookmark-tile:focus-visible { outline-offset:-2px }
+@media (hover:hover) and (prefers-reduced-motion:no-preference) {
+  .card[data-id="bookmarks"] .bookmark-mark { transition:transform 140ms ease-out }
+  .card[data-id="bookmarks"] .bookmark-tile:hover .bookmark-mark { transform:translateY(-1px) }
 }

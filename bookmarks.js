@@ -157,6 +157,8 @@ function renderBookmarks(container) {
   }
   const grid = el('div', 'bookmark-grid bookmark-folder-grid');
   const count = children.length;
+  // Scale gutters down for large browser folders as well as for small cards.
+  grid.style.setProperty('--folder-gap', (8 / Math.ceil(Math.sqrt(count))) + 'cqmin');
   for (const [name, ratio] of [['square', 1], ['wide', 2.5], ['tall', 0.5]]) {
     grid.style.setProperty('--' + name, Math.min(count, Math.ceil(Math.sqrt(count * ratio))));
   }
