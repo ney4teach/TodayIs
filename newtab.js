@@ -119,7 +119,7 @@ function flatten(s){const out={};for(const [k,v] of Object.entries(s)){if(record
 async function change(fn){try{await navigator.locks.request('gntd-write',async()=>{const account=await cloudAccount(),raw=await dashboardData(account),s=unpack(raw),before=structuredClone(flatten(s));fn(s);if(!packAll(s))throw Error('Для такого размера нет места');const after=flatten(normalize(s)),set={},remove=[];
  for(const [k,v] of Object.entries(after))if(JSON.stringify(before[k])!==JSON.stringify(v))set[k]=v;
  for(const k of Object.keys(before))if(!(k in after))remove.push(k);
- await writeDashboard(account,set,remove);await refresh()})}catch(e){toast(e.message);syncStatus='Ошибка сохранения';updateStatus()}}
+ await writeDashboard(account,set,remove);await refresh()});return true}catch(e){toast(e.message);syncStatus='Ошибка сохранения';updateStatus()}}
 let widgetScalePreview = null;
 
 function updateWidgetScale() {
@@ -327,7 +327,37 @@ function contents(id,n){const now=new Date();
  case 'music':{n.append(cap(id));if(systemMusic.render(n))break;const r=el('div','music');r.append(btn(audio.paused?'Воспроизвести':'Пауза',audio.paused?'▶':'Ⅱ',async()=>{if(!state.track)return musicSettings();if(!audio.paused)return audio.pause();if(audio.src!==state.track)audio.src=state.track;try{await audio.play()}catch{musicError='Источник недоступен';drawOne(id)}},'play'),el('span','',musicError||state.trackName||(state.track?'Мой трек':'Выбрать трек')));n.append(r);systemMusic.localTimeline(n);break}
  case 'system':n.append(cap(id));for(const [k,v] of [['CPU',cpu],['Загрузка CPU','—'],...(memory?[['Память',memory]]:[])]){const line=el('div','stat');line.append(el('small','',k),el('span','',v));n.append(line)}break}}
 function drawOne(id){const card=board.querySelector('[data-id="'+id+'"]');if(!card)return;const n=card.querySelector('.inside');n.replaceChildren();contents(id,n)}
-function wallpaperUrl(){return Object.hasOwn(wallpaperNames,state.wall)&&state.wall?'wallpapers/'+state.wall+'.svg':url(state.wall)}
+const deviceWallpaperKey = 'todayis.deviceWallpaper';
+let deviceWallpaper = null;
+
+function wallpaperUrl(){return deviceWallpaper?.image || (Object.hasOwn(wallpaperNames,state.wall)&&state.wall?'wallpapers/'+state.wall+'.svg':url(state.wall))}
+
+function updateDeviceWallpaper(photo) {
+  deviceWallpaper = photo ?? null;
+  const wall = wallpaperUrl();
+  document.body.style.backgroundImage = wall ? 'url('+JSON.stringify(wall)+')' : '';
+  updateAccent();
+  if (dialog.open && activeDialog === 'settings' && ['', 'appearance'].includes(settingsPage)) showSettings(settingsPage);
+}
+
+async function prepareWallpaper(file) {
+  const source = URL.createObjectURL(file);
+  try {
+    const image = new Image();
+    image.src = source;
+    try { await image.decode(); }
+    catch { throw Error('Не удалось открыть фото. Выбери JPG, PNG или WebP.') }
+    const canvas = el('canvas');
+    const scale = Math.min(1,2560/Math.max(image.naturalWidth,image.naturalHeight));
+    canvas.width = Math.max(1,Math.round(image.naturalWidth*scale));
+    canvas.height = Math.max(1,Math.round(image.naturalHeight*scale));
+    canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
+    return {name:file.name.slice(0,150), image:canvas.toDataURL('image/webp',.82)};
+  } finally {
+    URL.revokeObjectURL(source);
+  }
+}
+
 function draw(){cancelGesture();document.body.classList.toggle('light',state.theme==='light');const wall=wallpaperUrl();document.body.style.backgroundImage=wall?'url('+JSON.stringify(wall)+')':'';board.style.setProperty('--board-width',state.alignX==='center'?'100%':'94%');board.style.setProperty('--board-height',state.alignY==='center'?'100%':'94%');$('#panel').style.justifyContent=state.alignX;$('#panel').style.alignItems=state.alignY;board.classList.toggle('manage',state.manage);board.replaceChildren();
  for(const id of state.order){if(state.hidden.includes(id))continue;const card=el('section','card'+(state.tiles[id].text?' text-only':''));card.dataset.id=id;card.setAttribute('aria-label',names[id]);const n=el('div','inside');card.append(n);contents(id,n);if(state.manage){n.inert=true;const tools=el('div','tools');tools.append(btn('Переключить подписи','T',()=>change(s=>s.tiles[id].text=!s.tiles[id].text)),btn('Скрыть виджет','◉',()=>change(s=>s.hidden.push(id))));const grip=btn('Изменить размер','◢',()=>{},'grip');card.append(tools,grip)}board.append(card)}updateWidgetScale();dock()}
 function updateStatus(){const n=$('#sync');if(n)n.textContent=syncStatus}
@@ -384,6 +414,80 @@ function accentFields() {
   syncAccentFields();
 }
 
+function wallpaperFields() {
+  const custom = el('form','settings-url');
+  const address = input(url(state.wall),'url');
+  const label = el('label','field','Ссылка на обои');
+  const apply = el('button','','Применить ссылку');
+  address.required = true;
+  address.placeholder = 'https://…';
+  apply.type = 'submit';
+  label.append(address);
+  custom.append(label,apply);
+  const selectWallpaper = async wall=>{
+    try {
+      await navigator.locks.request(deviceWallpaperKey,async()=>{
+        if (await change(s=>s.wall=wall)) await chrome.storage.local.remove(deviceWallpaperKey);
+      });
+    }
+    catch { toast('Не удалось заменить фото с устройства'); }
+  };
+  const options = [...Object.entries(wallpaperNames),['custom','По ссылке']];
+  if (deviceWallpaper) options.push(['device','Фото с устройства']);
+  const current = deviceWallpaper ? 'device' : url(state.wall) ? 'custom' : state.wall;
+  selectField('Обои',options,current,value=>{
+    custom.hidden = value !== 'custom';
+    if (value === 'custom') address.focus();
+    else if (value !== 'device') selectWallpaper(value);
+  });
+  custom.hidden = current !== 'custom';
+  custom.onsubmit = event=>{
+    event.preventDefault();
+    const wall = url(address.value);
+    if (wall) selectWallpaper(wall);
+    else toast('Введите адрес HTTP или HTTPS');
+  };
+  fields.append(custom);
+
+  const upload = el('div','wallpaper-upload');
+  const preview = el('span','wallpaper-preview');
+  preview.setAttribute('aria-hidden','true');
+  if (deviceWallpaper) {
+    const image = el('img');
+    image.src = deviceWallpaper.image;
+    image.alt = '';
+    preview.append(image);
+  } else preview.append(icon('appearance'));
+  const copy = el('div','wallpaper-upload-copy');
+  copy.append(el('strong','','Фото с устройства'),el('small','',deviceWallpaper?.name || 'Хранится в этом браузере'));
+  const picker = el('input','wallpaper-file');
+  picker.type = 'file';
+  picker.accept = 'image/*';
+  picker.setAttribute('aria-label','Выбрать фото с устройства');
+  const action = el('label','wallpaper-file-button');
+  action.append(picker,el('span','',deviceWallpaper?'Заменить фото':'Выбрать фото'));
+  upload.append(preview,copy,action);
+  fields.append(upload);
+  picker.onchange = async()=>{
+    const file = picker.files[0];
+    if (!file) return;
+    picker.disabled = true;
+    action.lastElementChild.textContent = 'Загрузка…';
+    try {
+      await navigator.locks.request(deviceWallpaperKey,async()=>{
+        await chrome.storage.local.set({[deviceWallpaperKey]:await prepareWallpaper(file)});
+      });
+      if (dialog.open && settingsPage === 'appearance') fields.querySelector('.wallpaper-file')?.focus();
+    } catch(error) {
+      toast(error.message || 'Не удалось сохранить фото');
+    } finally {
+      picker.value = '';
+      picker.disabled = false;
+      action.lastElementChild.textContent = deviceWallpaper?'Заменить фото':'Выбрать фото';
+    }
+  };
+}
+
 function settings(){showSettings('')}
 function showSettings(page){
   const navigate=page!==settingsPage || !dialog.open;
@@ -399,7 +503,7 @@ function showSettings(page){
   }
   if(!page){
     const summaries={
-      appearance:(state.theme==='dark'?'Тёмная':'Светлая')+' · '+(wallpaperNames[state.wall]||'Свои обои'),
+      appearance:(state.theme==='dark'?'Тёмная':'Светлая')+' · '+(deviceWallpaper?'Фото с устройства':wallpaperNames[state.wall]||'Свои обои'),
       search:state.engine,widgets:'Включено '+(ids.length-state.hidden.length)+' из '+ids.length,account:'Профиль браузера'
     };
     for(const [key,title] of Object.entries(settingsTitles)){
@@ -418,14 +522,7 @@ function showSettings(page){
     widgetScaleField();
     selectField('Тема',[['dark','Тёмная'],['light','Светлая']],state.theme,v=>change(s=>s.theme=v));
     accentFields();
-    selectField('Обои',[...Object.entries(wallpaperNames),['custom','Свои обои']],url(state.wall)?'custom':state.wall,v=>{
-      if(v==='custom'){custom.hidden=false;address.focus()}else{custom.hidden=true;change(s=>s.wall=v)}
-    });
-    const custom=el('form','settings-url'),label=el('label','field','Ссылка на обои'),address=input(url(state.wall),'url');
-    address.required=true;address.placeholder='https://…';label.append(address);
-    const apply=el('button','','Применить');apply.type='submit';
-    custom.append(label,apply);custom.hidden=!url(state.wall);fields.append(custom);
-    custom.onsubmit=e=>{e.preventDefault();const v=url(address.value);if(v)change(s=>s.wall=v);else toast('Введите адрес HTTP или HTTPS')};
+    wallpaperFields();
   }else if(page==='search'){
     selectField('Поисковая система',Object.keys(engines).map(k=>[k,k]),state.engine,v=>change(s=>s.engine=v));
   }else if(page==='widgets'){
@@ -503,8 +600,8 @@ audio.onplay=audio.onpause=audio.onended=()=>drawOne('music');audio.onerror=()=>
 async function systemInfo(){try{const info=await chrome.system.cpu.getInfo();cpu=info.numOfProcessors+' поток.';const platform=await chrome.runtime.getPlatformInfo();if(platform.os==='cros'){const m=await chrome.system.memory.getInfo();memory=((m.capacity-m.availableCapacity)/2**30).toFixed(1)+' / '+(m.capacity/2**30).toFixed(1)+' ГБ'}}catch{cpu='Недоступно'}drawOne('system')}
 function stale(q){return !Number.isInteger(q.index)||!quotes[q.index]||!Number.isFinite(q.at)||Date.now()-q.at>=86400000||q.at>Date.now()}
 function rotateQuote(){if(stale(state.quote))change(s=>{if(stale(s.quote))s.quote={index:(Number.isInteger(s.quote.index)?s.quote.index+1:Math.floor(Math.random()*quotes.length))%quotes.length,at:Date.now()}})}
-async function init(){draw();if(!globalThis.chrome?.storage?.sync){syncStatus='Откройте страницу как расширение Chrome';return}initCloud();chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes[cloudKey]){refresh();renderCloud()}if(area==='sync'&&Object.keys(changes).some(k=>k.startsWith('gntd.')))refresh().catch(()=>toast('Ошибка чтения настроек'))});
- try{await refresh();rotateQuote()}catch{syncStatus='Ошибка чтения настроек';toast(syncStatus)}
+async function init(){draw();if(!globalThis.chrome?.storage?.sync){syncStatus='Откройте страницу как расширение Chrome';return}initCloud();let receivedWallpaperChange=false;chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes[deviceWallpaperKey]){receivedWallpaperChange=true;updateDeviceWallpaper(changes[deviceWallpaperKey].newValue)}if(area==='local'&&changes[cloudKey]){refresh();renderCloud()}if(area==='sync'&&Object.keys(changes).some(k=>k.startsWith('gntd.')))refresh().catch(()=>toast('Ошибка чтения настроек'))});
+ try{const photo=(await chrome.storage.local.get(deviceWallpaperKey))[deviceWallpaperKey];if(!receivedWallpaperChange)updateDeviceWallpaper(photo);await refresh();rotateQuote()}catch{syncStatus='Ошибка чтения настроек';toast(syncStatus)}
  bookmarks();for(const event of ['onCreated','onRemoved','onChanged','onMoved','onImportEnded','onChildrenReordered'])chrome.bookmarks[event].addListener(bookmarks);systemInfo();let lastDay=day(new Date()),hour=new Date().getHours();
  setInterval(()=>{const now=new Date(),t=board.querySelector('[data-clock-display]');if(t)updateClock(t,now);if(hour!==now.getHours()){hour=now.getHours();drawOne('greeting')}if(lastDay!==day(now)){lastDay=day(now);drawOne('calendar')}rotateQuote()},15000);setInterval(()=>{if(!document.hidden&&memory)systemInfo()},60000)}
 init();
