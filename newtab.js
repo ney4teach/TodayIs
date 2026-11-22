@@ -40,7 +40,7 @@ function normalizeWidgetScale(value) {
 
 function normalize(raw={}){raw=raw&&typeof raw==='object'?raw:{};const list=v=>Array.isArray(v)?[...new Set(v.filter(id=>ids.includes(id)))]:[];
  const s={widgetScale:normalizeWidgetScale(raw.widgetScale),bookmarkSource:one(raw.bookmarkSource,['custom','browser'],'custom'),bookmarkFolder:typeof raw.bookmarkFolder==="string"?raw.bookmarkFolder:"",clock:clockOptions(raw.clock),order:[...new Set([...list(raw.order),...ids])],hidden:list(raw.hidden),tiles:{},theme:one(raw.theme,['dark','light'],'dark'),wall:typeof raw.wall==='string'?raw.wall:'',engine:one(raw.engine,Object.keys(engines),'Google'),alignX:one(raw.alignX,['start','center','end'],'center'),alignY:one(raw.alignY,['start','center','end'],'center'),manage:raw.manage===true,musicTint:raw.musicTint!==false,track:url(raw.track),trackName:String(raw.trackName||'').slice(0,120),tasks:[],events:[],quote:raw.quote||{},weather:raw.weather||{}};
- for(const id of ids){const t=raw.tiles?.[id]||{},d=defaults(id);s.tiles[id]={size:one(t.size,Object.keys(widths),d.size),rows:one(t.rows,[1,2,3],d.rows),text:t.text===true};if(id==='greeting')s.tiles[id].nickname=typeof t.nickname==='string'?t.nickname.trim().slice(0,40):''}
+ for(const id of ids){const t=raw.tiles?.[id]||{},d=defaults(id);s.tiles[id]={size:one(t.size,Object.keys(widths),d.size),rows:one(t.rows,[1,2,3],d.rows),text:t.text===true};if(id==='greeting'){s.tiles[id].nickname=typeof t.nickname==='string'?t.nickname.trim().slice(0,40):'';s.tiles[id].showDate=t.showDate!==false}}
  for(const type of ['tasks','events'])s[type]=(Array.isArray(raw[type])?raw[type]:[]).filter(r=>r&&typeof r.id==='string'&&typeof r.text==='string'&&r.text.trim()&&(type==='tasks'||/^\d{4}-\d\d-\d\d$/.test(r.date))).map(r=>({id:r.id,text:r.text.slice(0,240),...(type==='tasks'?{done:!!r.done}:{date:r.date})}));
  Object.assign(s, normalizeCustomBookmarks(raw));
  s.cities=Array.isArray(raw.cities)?raw.cities.filter(validWeatherCity):[];
@@ -251,9 +251,48 @@ function clockFields() {
   }
   fields.append(group);
 }
+const greetingScenes = {morning:'Доброе утро', day:'Добрый день', evening:'Добрый вечер', night:'Доброй ночи'};
+const greetingDate = new Intl.DateTimeFormat('ru', {weekday:'long', day:'numeric', month:'long'});
+const compactGreetingDate = new Intl.DateTimeFormat('ru', {day:'numeric', month:'short'});
+function updateGreeting(n, now) {
+  if (!n) return;
+  const hour = now.getHours();
+  const scene = hour < 5 || hour >= 23 ? 'night' : hour < 12 ? 'morning' : hour < 18 ? 'day' : 'evening';
+  n.dataset.scene = scene;
+  const nickname = state.tiles.greeting.nickname;
+  n.querySelector('.greet-message').textContent = greetingScenes[scene] + (nickname ? ',' : '');
+  const date = n.querySelector('.greet-date');
+  const fullDate = greetingDate.format(now);
+  date.title = fullDate;
+  date.querySelector('.greet-date-full').textContent = fullDate;
+  date.querySelector('.greet-date-short').textContent = compactGreetingDate.format(now);
+  date.dateTime = day(now);
+}
+function renderGreeting(n, now) {
+  const copy = el('div', 'greet-copy');
+  const title = el('div', 'greet-title');
+  const nickname = state.tiles.greeting.nickname;
+  title.append(el('span', 'greet-message'));
+  if (nickname) title.append(' ', el('span', 'greet-name', nickname));
+  const date = el('time', 'greet-date');
+  date.append(el('span', 'greet-date-full'), el('span', 'greet-date-short'));
+  date.hidden = !state.tiles.greeting.showDate;
+  copy.append(title, date);
+  const art = el('div', 'greet-art');
+  art.setAttribute('aria-hidden', 'true');
+  for (const scene of Object.keys(greetingScenes)) {
+    const picture = el('img', 'greet-picture');
+    picture.dataset.scene = scene;
+    picture.alt = '';
+    picture.src = 'wallpapers/greeting/' + scene + '.jpg';
+    art.append(picture);
+  }
+  n.append(copy, art);
+  updateGreeting(n, now);
+}
 function contents(id,n){const now=new Date();
  switch(id){
- case 'greeting':{const h=now.getHours(),name=state.tiles.greeting.nickname;const greeting=h<5?'Доброй ночи':h<12?'Доброе утро':h<18?'Добрый день':'Добрый вечер';n.append(el('div','greet-date',now.toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'})),el('div','big',name?greeting+', '+name:greeting));break}
+ case 'greeting':renderGreeting(n,now);break
  case 'clock':renderClock(n);break;
  case 'search':{n.append(cap(id));const f=el('form','search'),q=input('','search');q.placeholder='Найти в '+state.engine;q.setAttribute('aria-label','Поисковый запрос');const b=el('button','','→');b.setAttribute('aria-label','Искать');f.append(q,b);f.onsubmit=e=>{e.preventDefault();if(q.value.trim())location.assign(engines[state.engine]+encodeURIComponent(q.value.trim()))};n.append(f);break}
  case 'weather':renderWeather(n);break
@@ -264,7 +303,7 @@ function contents(id,n){const now=new Date();
  case 'system':n.append(cap(id));for(const [k,v] of [['CPU',cpu],['Загрузка CPU','—'],...(memory?[['Память',memory]]:[])]){const line=el('div','stat');line.append(el('small','',k),el('span','',v));n.append(line)}break}}
 function drawOne(id){const card=board.querySelector('[data-id="'+id+'"]');if(!card)return;const n=card.querySelector('.inside');n.replaceChildren();contents(id,n)}
 function draw(){cancelGesture();document.body.classList.toggle('light',state.theme==='light');const wall=['horizon','aurora'].includes(state.wall)?'wallpapers/'+state.wall+'.svg':url(state.wall);document.body.style.backgroundImage=wall?'url('+JSON.stringify(wall)+')':'';board.style.setProperty('--board-width',state.alignX==='center'?'100%':'94%');board.style.setProperty('--board-height',state.alignY==='center'?'100%':'94%');$('#panel').style.justifyContent=state.alignX;$('#panel').style.alignItems=state.alignY;board.classList.toggle('manage',state.manage);board.replaceChildren();
- for(const id of state.order){if(state.hidden.includes(id))continue;const card=el('section','card'+(state.tiles[id].text?' text-only':''));card.dataset.id=id;card.setAttribute('aria-label',names[id]);const n=el('div','inside');card.append(n);contents(id,n);if(state.manage){n.inert=true;const tools=el('div','tools');tools.append(btn('Переключить подписи','T',()=>change(s=>s.tiles[id].text=!s.tiles[id].text)),btn('Скрыть виджет','◉',()=>change(s=>s.hidden.push(id))));const grip=btn('Изменить размер','◢',()=>{},'grip');card.append(tools,grip)}board.append(card)}updateWidgetScale();dock()}
+ for(const id of state.order){if(state.hidden.includes(id))continue;const card=el('section','card'+(state.tiles[id].text?' text-only':''));card.dataset.id=id;card.setAttribute('aria-label',names[id]);const n=el('div','inside');card.append(n);contents(id,n);if(state.manage){n.inert=true;const tools=el('div','tools');if(id!=='greeting')tools.append(btn('Переключить подписи','T',()=>change(s=>s.tiles[id].text=!s.tiles[id].text)));tools.append(btn('Скрыть виджет','◉',()=>change(s=>s.hidden.push(id))));const grip=btn('Изменить размер','◢',()=>{},'grip');card.append(tools,grip)}board.append(card)}updateWidgetScale();dock()}
 function updateStatus(){const n=$('#sync');if(n)n.textContent=syncStatus}
 let readRevision=0;
 async function refresh(){const revision=++readRevision;const account=await cloudAccount();const next=unpack(await dashboardData(account));if(revision!==readRevision)return;const prev=state;state=next;if(prev.widgetScale!==next.widgetScale&&widgetScalePreview===null)updateWidgetScale();syncStatus=account?'Облачный профиль · локальная копия':'Сохранено в профиле браузера';updateStatus();if(prev.track!==next.track){audio.pause();audio.removeAttribute('src');audio.load();musicError=''}const keys=Object.keys(next).filter(k=>JSON.stringify(next[k])!==JSON.stringify(prev[k]));if(!board.children.length||keys.some(k=>['order','hidden','tiles','theme','wall','alignX','alignY','manage'].includes(k)))draw();else for(const k of keys){const id=({bookmarkSource:'bookmarks',linkCategories:'bookmarks',siteTiles:'bookmarks',bookmarkFolder:'bookmarks',cities:'weather',weatherCity:'weather',events:'calendar',engine:'search',track:'music',trackName:'music',musicTint:'music'})[k]||k;if(ids.includes(id))drawOne(id)}if(dialog.open&&activeDialog==='bookmark-search'&&keys.some(k=>['bookmarkSource','linkCategories','siteTiles'].includes(k)))updateBookmarkResults();if(activeDialog==='settings'&&dialog.open&&keys.some(k=>({appearance:['theme','wall'],search:['engine'],widgets:['hidden','order'],account:[],clock:['clock'],bookmarks:['bookmarkFolder','bookmarkSource','linkCategories','siteTiles']}[settingsPage]||['hidden','theme','wall','engine']).includes(k)))showSettings(settingsPage)}
@@ -336,7 +375,7 @@ function showSettings(page){
       row.append(toggle);fields.append(row);
     }
     fields.append(btn('Сбросить раскладку','Сбросить раскладку',()=>change(s=>{
-      const d=normalize();d.tiles.greeting.nickname=s.tiles.greeting.nickname;for(const k of ['order','tiles','hidden','alignX','alignY'])s[k]=d[k];
+      const d=normalize();d.tiles.greeting.nickname=s.tiles.greeting.nickname;d.tiles.greeting.showDate=s.tiles.greeting.showDate;for(const k of ['order','tiles','hidden','alignX','alignY'])s[k]=d[k];
     })));
   }else if(page==='bookmarks'){bookmarkFields();
   }else if(page==='clock'){clockFields();
@@ -344,10 +383,15 @@ function showSettings(page){
     const nickname=input(state.tiles.greeting.nickname);
     nickname.maxLength=40;nickname.placeholder='Например, Юра';
     field('Имя или псевдоним',nickname);
+    const showDate = input('', 'checkbox');
+    showDate.checked = state.tiles.greeting.showDate;
+    const dateLabel = el('label', 'row');
+    dateLabel.append('Показывать дату', showDate);
+    fields.append(dateLabel);
     formSave('Сохранить',async()=>{
       const name=nickname.value.trim();
-      await change(s=>{s.tiles.greeting.nickname=name});
-      if(state.tiles.greeting.nickname===name && settingsPage==='greeting' && dialog.open)showSettings('widgets');
+      await change(s=>{s.tiles.greeting.nickname=name;s.tiles.greeting.showDate=showDate.checked});
+      if(state.tiles.greeting.nickname===name && state.tiles.greeting.showDate===showDate.checked && settingsPage==='greeting' && dialog.open)showSettings('widgets');
     });
   }else if(page==='music'){
     musicFields();
@@ -396,5 +440,5 @@ function rotateQuote(){if(stale(state.quote))change(s=>{if(stale(s.quote))s.quot
 async function init(){draw();if(!globalThis.chrome?.storage?.sync){syncStatus='Откройте страницу как расширение Chrome';return}initCloud();chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes[cloudKey]){refresh();renderCloud()}if(area==='sync'&&Object.keys(changes).some(k=>k.startsWith('gntd.')))refresh().catch(()=>toast('Ошибка чтения настроек'))});
  try{await refresh();rotateQuote()}catch{syncStatus='Ошибка чтения настроек';toast(syncStatus)}
  bookmarks();for(const event of ['onCreated','onRemoved','onChanged','onMoved','onImportEnded','onChildrenReordered'])chrome.bookmarks[event].addListener(bookmarks);systemInfo();let lastDay=day(new Date()),hour=new Date().getHours();
- setInterval(()=>{const now=new Date(),t=board.querySelector('[data-clock-display]');if(t)updateClock(t,now);if(hour!==now.getHours()){hour=now.getHours();drawOne('greeting')}if(lastDay!==day(now)){lastDay=day(now);drawOne('calendar')}rotateQuote()},15000);setInterval(()=>{if(!document.hidden&&memory)systemInfo()},60000)}
+ setInterval(()=>{const now=new Date(),t=board.querySelector('[data-clock-display]');if(t)updateClock(t,now);if(hour!==now.getHours()||lastDay!==day(now)){hour=now.getHours();updateGreeting(board.querySelector('[data-id=greeting] .inside'),now)}if(lastDay!==day(now)){lastDay=day(now);drawOne('calendar')}rotateQuote()},15000);setInterval(()=>{if(!document.hidden&&memory)systemInfo()},60000)}
 init();
