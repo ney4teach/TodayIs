@@ -208,3 +208,38 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .widget-scale {display:grid;gap:8px}
 .widget-scale input[type="range"] {width:100%;margin:0;padding:0;accent-color:var(--accent);cursor:pointer}
 #widget-scale-value {font-variant-numeric:tabular-nums}
+
+.card[data-id="bookmarks"]:has(.bookmark-panel) { container: bookmarks / size }
+.card[data-id="bookmarks"] .inside:has(> .bookmark-panel) { padding:clamp(8px,min(3cqw,4cqh),14px); overflow:visible }
+.bookmark-panel {
+  display:grid; flex:1; min-height:0; grid-auto-rows:minmax(0,1fr);
+  gap:min(1.2cqw,1.8cqh,8px);
+}
+@container bookmarks (min-aspect-ratio: 2/1) {
+  .bookmark-panel { grid-template-columns:repeat(min(2,var(--themes)),minmax(0,1fr)) }
+}
+@container bookmarks (min-aspect-ratio: 5/1) {
+  .bookmark-panel { grid-template-columns:repeat(var(--themes),minmax(0,1fr)) }
+}
+.bookmark-panel > .bookmark-theme {
+  container: bookmark-group / size; min-width:0; min-height:0;
+  display:flex; flex-direction:column; border:0; padding:0; background:var(--field); border-radius:8px;
+}
+.bookmark-panel .bookmark-theme-heading { padding:0 5px; height:min(22px,30cqh) }
+.bookmark-panel h3 { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:13px }
+.bookmark-panel .bookmark-grid {
+  flex:1; min-height:0; margin:0; display:grid; grid-template-columns:repeat(4,minmax(0,1fr));
+  grid-template-rows:minmax(0,1fr); gap:0;
+}
+.bookmark-panel .bookmark-tile { container-type:size; min-height:0; padding:0; gap:2px; justify-content:center }
+.bookmark-panel .bookmark-mark { width:min(88cqw,60cqh,40px); height:min(88cqw,60cqh,40px); font-size:min(48cqw,40cqh,18px) }
+.bookmark-panel .bookmark-mark.loaded { font-size:0 }
+.bookmark-panel .bookmark-mark img { width:78%; height:78% }
+.bookmark-panel .bookmark-label { line-height:15px; font-size:12px; padding-inline:2px }
+@container bookmark-group (max-height:65px) or (max-width:175px) {
+  .bookmark-panel .bookmark-label { display:none }
+  .bookmark-panel .bookmark-mark { width:min(90cqw,90cqh,38px); height:min(90cqw,90cqh,38px) }
+}
+@container bookmark-group (max-height:40px) or (max-width:105px) {
+  .bookmark-panel .bookmark-theme-heading { display:none }
+}
