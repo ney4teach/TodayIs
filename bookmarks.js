@@ -155,7 +155,11 @@ function renderBookmarks(container) {
     container.append(el('small', '', bookmarkStatus || 'В этой папке пока пусто'));
     return;
   }
-  const grid = el('div', 'bookmark-grid');
+  const grid = el('div', 'bookmark-grid bookmark-folder-grid');
+  const count = children.length;
+  for (const [name, ratio] of [['square', 1], ['wide', 2.5], ['tall', 0.5]]) {
+    grid.style.setProperty('--' + name, Math.min(count, Math.ceil(Math.sqrt(count * ratio))));
+  }
   for (const node of children) grid.append(bookmarkTile(node, id => {
     bookmarkTrail.push(id);
     drawOne('bookmarks');

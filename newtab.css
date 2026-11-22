@@ -209,8 +209,36 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .widget-scale input[type="range"] {width:100%;margin:0;padding:0;accent-color:var(--accent);cursor:pointer}
 #widget-scale-value {font-variant-numeric:tabular-nums}
 
-.card[data-id="bookmarks"]:has(.bookmark-panel) { container: bookmarks / size }
-.card[data-id="bookmarks"] .inside:has(> .bookmark-panel) { padding:clamp(8px,min(3cqw,4cqh),14px); overflow:visible }
+.card[data-id="bookmarks"] { container: bookmarks / size }
+.card[data-id="bookmarks"] .inside {
+  display:grid; grid-template: minmax(0,1fr) / minmax(0,1fr);
+  padding:min(8px,8cqw,8cqh); gap:0; overflow:clip;
+}
+.card[data-id="bookmarks"] .inside:has(> .cap) {
+  grid-template-rows:auto minmax(0,1fr);
+}
+.bookmark-folder-grid {
+  grid-template-columns:repeat(var(--square),minmax(0,1fr));
+  grid-auto-rows:minmax(0,1fr); min-height:0; gap:0;
+}
+@container bookmarks (min-aspect-ratio: 2/1) {
+  .bookmark-folder-grid { grid-template-columns:repeat(var(--wide),minmax(0,1fr)) }
+}
+@container bookmarks (max-aspect-ratio: 2/3) {
+  .bookmark-folder-grid { grid-template-columns:repeat(var(--tall),minmax(0,1fr)) }
+}
+.bookmark-folder-grid .bookmark-tile {
+  container: folder-tile / size; min-height:0; padding:0; justify-content:center; gap:0;
+}
+.bookmark-folder-grid .bookmark-mark {
+  width:min(88cqw,60cqh,40px); height:min(88cqw,60cqh,40px); font-size:min(44cqw,40cqh,18px);
+}
+.bookmark-folder-grid .bookmark-mark.loaded { font-size:0 }
+.bookmark-folder-grid .bookmark-mark :is(img,svg) { width:78%; height:78% }
+@container folder-tile (max-height:52px) or (max-width:50px) {
+  .bookmark-label { display:none }
+  .bookmark-folder-grid .bookmark-mark { width:min(90cqw,90cqh,40px); height:min(90cqw,90cqh,40px) }
+}
 .bookmark-panel {
   display:grid; flex:1; min-height:0; grid-auto-rows:minmax(0,1fr);
   gap:min(1.2cqw,1.8cqh,8px);
