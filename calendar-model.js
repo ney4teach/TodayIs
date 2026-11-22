@@ -4,8 +4,13 @@ const shiftTypes = {
   full: ['Суточная', 'С'],
   off: ['Выходной', 'В'],
   extra: ['Подработка', 'П'],
+  vacation: ['Отпуск'],
+  sick: ['Больничный'],
   skip: ['Смена отменена', '×']
 };
+const primaryShiftKinds = ['day','night','full','off','vacation','sick'];
+const cycleShiftKinds = [...primaryShiftKinds,'extra'];
+const hasShiftTime = kind => ['day','night','full','extra'].includes(kind);
 const shiftPresets = {
   '2/2': ['day','day','off','off'],
   '5/2': ['day','day','day','day','day','off','off'],
@@ -18,7 +23,7 @@ const validTime = value => typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\
 
 function normalizeShift(value, allowed) {
   if (!value || !allowed.includes(value.kind)) return null;
-  const timed = !['off','skip'].includes(value.kind) && validTime(value.from) && validTime(value.to);
+  const timed = hasShiftTime(value.kind) && validTime(value.from) && validTime(value.to);
   return {kind:value.kind, from:timed ? value.from : '', to:timed ? value.to : '',
     nextDay:timed && (value.nextDay === true || value.to < value.from),
     note:typeof value.note === 'string' ? value.note.slice(0,240) : ''};
@@ -29,7 +34,7 @@ function normalizeCalendarEvent(record) {
   if (record.schedule && validDate(record.date)) {
     const {until, cycle} = record.schedule;
     if (!validDate(until) || until < record.date || !Array.isArray(cycle) || !cycle.length || cycle.length > 31) return null;
-    const steps = cycle.map(step=>normalizeShift(step,['day','night','full','off','extra']));
+    const steps = cycle.map(step=>normalizeShift(step,cycleShiftKinds));
     return steps.every(Boolean) ? {...event,schedule:{until,cycle:steps}} : null;
   }
   if (record.shift && validDate(record.date)) {

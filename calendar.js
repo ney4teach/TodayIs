@@ -123,7 +123,7 @@ function shiftFields(host, initial, kinds) {
   timeRow.append(label('Начало',from),label('Окончание',to),label('На следующий день',nextDay));
   host.append(label('Тип смены',kind),timeRow,label('Заметка',note));
   const update = ()=>{
-    const timed = !['off','skip'].includes(kind.value);
+    const timed = hasShiftTime(kind.value);
     timeRow.hidden = !timed;
     from.disabled = to.disabled = nextDay.disabled = !timed;
     from.required = timed && !!to.value;
@@ -162,8 +162,8 @@ async function saveCalendarEntry(date, apply) {
 
 function shiftForm(date,{shift={kind:'day'},schedule,record}={}) {
   const form = calendarForm('Смена · '+calendarDateLabel(date),'calendar-editor',date);
-  const kinds = schedule ? ['day','night','full','off','extra','skip']
-    : shift.kind === 'extra' ? ['extra'] : ['day','night','full','off'];
+  const kinds = schedule ? [...cycleShiftKinds,'skip']
+    : shift.kind === 'extra' ? ['extra'] : primaryShiftKinds;
   const editor = shiftFields(form,shift,kinds);
   const id = schedule ? schedule.id+'-'+date : record?.id ?? crypto.randomUUID();
   calendarSubmit(form,'Сохранить смену',async()=>{
@@ -258,7 +258,7 @@ function scheduleForm(date) {
     editors = cycle.map((shift,index)=>{
       const box = el('fieldset','calendar-step');
       box.append(el('legend','','День '+(index+1)));
-      const editor = shiftFields(box,shift,['day','night','full','off','extra']);
+      const editor = shiftFields(box,shift,cycleShiftKinds);
       if (preset.value === 'custom' && cycle.length > 1) box.append(btn('Удалить день '+(index+1),'Удалить день',()=>{
         renderSteps(currentCycle().filter((_,i)=>i !== index));
       }));

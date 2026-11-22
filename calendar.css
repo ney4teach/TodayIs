@@ -26,10 +26,14 @@ button.calendar-with-extra {border-color:var(--extra-shift)}
 .calendar-type-full {--shift:#84e1db}
 .calendar-type-off {--shift:var(--muted)}
 .calendar-type-extra {--shift:var(--extra-shift)}
+.calendar-type-vacation {--shift:#addd84}
+.calendar-type-sick {--shift:#f9ac7d}
 .calendar-type-skip {--shift:#ffaaa6}
 .light .calendar-type-day {--shift:#8b5000}
 .light .calendar-type-night {--shift:#5040ad}
 .light .calendar-type-full {--shift:#09665d}
+.light .calendar-type-vacation {--shift:#436925}
+.light .calendar-type-sick {--shift:#974529}
 .light .calendar-type-skip {--shift:#a12c27}
 dialog[data-view=calendar],dialog[data-view=calendar-editor] {width:min(760px,94vw);scrollbar-width:thin}
 dialog[data-view=calendar-editor] {width:min(580px,94vw)}
