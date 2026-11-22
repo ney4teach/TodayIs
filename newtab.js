@@ -30,8 +30,16 @@ function clockOptions(raw = {}) {
   const cities = ['local', ...Object.keys(clockCities).filter(zone => zone !== 'local' && Array.isArray(raw?.cities) && raw.cities.includes(zone))];
   return {face:one(raw?.face,['digital','analog'],'digital'), cities, zone:one(raw?.zone,cities,'local')};
 }
+const widgetScaleRange = {min:60, max:100, step:5};
+
+function normalizeWidgetScale(value) {
+  const {min,max,step} = widgetScaleRange;
+  if (!Number.isFinite(value)) return max;
+  return Math.min(max, Math.max(min, Math.round(value / step) * step));
+}
+
 function normalize(raw={}){raw=raw&&typeof raw==='object'?raw:{};const list=v=>Array.isArray(v)?[...new Set(v.filter(id=>ids.includes(id)))]:[];
- const s={bookmarkSource:one(raw.bookmarkSource,['custom','browser'],'custom'),bookmarkFolder:typeof raw.bookmarkFolder==="string"?raw.bookmarkFolder:"",clock:clockOptions(raw.clock),order:[...new Set([...list(raw.order),...ids])],hidden:list(raw.hidden),tiles:{},theme:one(raw.theme,['dark','light'],'dark'),wall:typeof raw.wall==='string'?raw.wall:'',engine:one(raw.engine,Object.keys(engines),'Google'),alignX:one(raw.alignX,['start','center','end'],'center'),alignY:one(raw.alignY,['start','center','end'],'center'),manage:raw.manage===true,musicTint:raw.musicTint!==false,track:url(raw.track),trackName:String(raw.trackName||'').slice(0,120),tasks:[],events:[],quote:raw.quote||{},weather:raw.weather||{}};
+ const s={widgetScale:normalizeWidgetScale(raw.widgetScale),bookmarkSource:one(raw.bookmarkSource,['custom','browser'],'custom'),bookmarkFolder:typeof raw.bookmarkFolder==="string"?raw.bookmarkFolder:"",clock:clockOptions(raw.clock),order:[...new Set([...list(raw.order),...ids])],hidden:list(raw.hidden),tiles:{},theme:one(raw.theme,['dark','light'],'dark'),wall:typeof raw.wall==='string'?raw.wall:'',engine:one(raw.engine,Object.keys(engines),'Google'),alignX:one(raw.alignX,['start','center','end'],'center'),alignY:one(raw.alignY,['start','center','end'],'center'),manage:raw.manage===true,musicTint:raw.musicTint!==false,track:url(raw.track),trackName:String(raw.trackName||'').slice(0,120),tasks:[],events:[],quote:raw.quote||{},weather:raw.weather||{}};
  for(const id of ids){const t=raw.tiles?.[id]||{},d=defaults(id);s.tiles[id]={size:one(t.size,Object.keys(widths),d.size),rows:one(t.rows,[1,2,3],d.rows),text:t.text===true};if(id==='greeting')s.tiles[id].nickname=typeof t.nickname==='string'?t.nickname.trim().slice(0,40):''}
  for(const type of ['tasks','events'])s[type]=(Array.isArray(raw[type])?raw[type]:[]).filter(r=>r&&typeof r.id==='string'&&typeof r.text==='string'&&r.text.trim()&&(type==='tasks'||/^\d{4}-\d\d-\d\d$/.test(r.date))).map(r=>({id:r.id,text:r.text.slice(0,240),...(type==='tasks'?{done:!!r.done}:{date:r.date})}));
  Object.assign(s, normalizeCustomBookmarks(raw));
@@ -48,12 +56,71 @@ async function change(fn){try{await navigator.locks.request('gntd-write',async()
  for(const [k,v] of Object.entries(after))if(JSON.stringify(before[k])!==JSON.stringify(v))set[k]=v;
  for(const k of Object.keys(before))if(!(k in after))remove.push(k);
  await writeDashboard(account,set,remove);await refresh()})}catch(e){toast(e.message);syncStatus='Ошибка сохранения';updateStatus()}}
+let widgetScalePreview = null;
+
+function updateWidgetScale() {
+  const scale = widgetScalePreview ?? state.widgetScale;
+  cancelGesture();
+  board.style.setProperty('--widget-scale', String(scale / 100));
+  layout();
+
+  const slider = fields.querySelector('#widget-scale');
+  if (slider) {
+    const label = scale + ' %';
+    slider.value = scale;
+    slider.setAttribute('aria-valuetext', label);
+    fields.querySelector('#widget-scale-value').textContent = label;
+  }
+}
+
+function widgetScaleField() {
+  const fieldBox = el('div', 'widget-scale');
+  const header = el('div', 'row');
+  const label = el('label', '', 'Размер всех виджетов');
+  label.htmlFor = 'widget-scale';
+  const slider = input('', 'range');
+  slider.id = label.htmlFor;
+  const {min,max,step} = widgetScaleRange;
+  Object.assign(slider, {min,max,step});
+  const value = el('span', 'muted');
+  value.id = 'widget-scale-value';
+  header.append(label, value);
+  fieldBox.append(header, slider);
+  fields.append(fieldBox);
+  updateWidgetScale();
+
+  let pending = null;
+  slider.oninput = () => {
+    pending = null;
+    widgetScalePreview = slider.valueAsNumber;
+    updateWidgetScale();
+  };
+  slider.onchange = async () => {
+    const edit = {value:slider.valueAsNumber};
+    pending = edit;
+    await change(s => { s.widgetScale = edit.value; });
+    if (pending !== edit || !slider.isConnected) return;
+    pending = null;
+    widgetScalePreview = null;
+    updateWidgetScale();
+  };
+  slider.onpointercancel = () => {
+    widgetScalePreview = null;
+    updateWidgetScale();
+  };
+}
+
 function metrics(){return {cw:(board.clientWidth-5*gap)/6,rh:(board.clientHeight-(rows-1)*gap)/rows}}
 function box(p){const {cw,rh}=metrics();return {left:p.x*(cw+gap),top:p.y*(rh+gap),width:p.w*(cw+gap)-gap,height:p.h*(rh+gap)-gap}}
 function place(n,r){for(const [k,v] of Object.entries(r))n.style[k]=v+'px'}
 function layout(){pos=packAll(state);for(const n of board.querySelectorAll('.card'))if(pos[n.dataset.id])place(n,box(pos[n.dataset.id]))}
 function cap(id,extra){const n=el('div','cap');n.append(icon(id),el('span','',names[id]));if(extra)n.append(extra);return n}
-function modal(title,key){if(key!=='settings')dialog.querySelector('.settings-back')?.remove();activeDialog=key;dialog.dataset.view=key;dialog.querySelector('h2').textContent=title;fields.replaceChildren();if(!dialog.open)dialog.showModal()}
+function modal(title,key){
+  if (widgetScalePreview !== null) {
+    widgetScalePreview = null;
+    updateWidgetScale();
+  }
+if(key!=='settings')dialog.querySelector('.settings-back')?.remove();activeDialog=key;dialog.dataset.view=key;dialog.querySelector('h2').textContent=title;fields.replaceChildren();if(!dialog.open)dialog.showModal()}
 function field(label,input){const l=el('label','field',label);l.append(input);fields.append(l)}
 function input(value='',type='text'){const n=el('input');n.type=type;n.value=value;return n}
 function formSave(label,fn){const form=el('form');form.style.display='contents';form.append(...fields.childNodes);const b=el('button','',label);b.type='submit';form.append(b);fields.append(form);form.onsubmit=e=>{e.preventDefault();fn()}}
@@ -196,11 +263,11 @@ function contents(id,n){const now=new Date();
  case 'music':{n.append(cap(id));if(systemMusic.render(n))break;const r=el('div','music');r.append(btn(audio.paused?'Воспроизвести':'Пауза',audio.paused?'▶':'Ⅱ',async()=>{if(!state.track)return musicSettings();if(!audio.paused)return audio.pause();if(audio.src!==state.track)audio.src=state.track;try{await audio.play()}catch{musicError='Источник недоступен';drawOne(id)}},'play'),el('span','',musicError||state.trackName||(state.track?'Мой трек':'Выбрать трек')));n.append(r);systemMusic.localTimeline(n);break}
  case 'system':n.append(cap(id));for(const [k,v] of [['CPU',cpu],['Загрузка CPU','—'],...(memory?[['Память',memory]]:[])]){const line=el('div','stat');line.append(el('small','',k),el('span','',v));n.append(line)}break}}
 function drawOne(id){const card=board.querySelector('[data-id="'+id+'"]');if(!card)return;const n=card.querySelector('.inside');n.replaceChildren();contents(id,n)}
-function draw(){cancelGesture();document.body.classList.toggle('light',state.theme==='light');const wall=['horizon','aurora'].includes(state.wall)?'wallpapers/'+state.wall+'.svg':url(state.wall);document.body.style.backgroundImage=wall?'url('+JSON.stringify(wall)+')':'';board.style.width=state.alignX==='center'?'':'min(94%,1400px)';board.style.height=state.alignY==='center'?'':'min(94%,850px)';$('#panel').style.justifyContent=state.alignX;$('#panel').style.alignItems=state.alignY;board.classList.toggle('manage',state.manage);board.replaceChildren();
- for(const id of state.order){if(state.hidden.includes(id))continue;const card=el('section','card'+(state.tiles[id].text?' text-only':''));card.dataset.id=id;card.setAttribute('aria-label',names[id]);const n=el('div','inside');card.append(n);contents(id,n);if(state.manage){n.inert=true;const tools=el('div','tools');tools.append(btn('Переключить подписи','T',()=>change(s=>s.tiles[id].text=!s.tiles[id].text)),btn('Скрыть виджет','◉',()=>change(s=>s.hidden.push(id))));const grip=btn('Изменить размер','◢',()=>{},'grip');card.append(tools,grip)}board.append(card)}layout();dock()}
+function draw(){cancelGesture();document.body.classList.toggle('light',state.theme==='light');const wall=['horizon','aurora'].includes(state.wall)?'wallpapers/'+state.wall+'.svg':url(state.wall);document.body.style.backgroundImage=wall?'url('+JSON.stringify(wall)+')':'';board.style.setProperty('--board-width',state.alignX==='center'?'100%':'94%');board.style.setProperty('--board-height',state.alignY==='center'?'100%':'94%');$('#panel').style.justifyContent=state.alignX;$('#panel').style.alignItems=state.alignY;board.classList.toggle('manage',state.manage);board.replaceChildren();
+ for(const id of state.order){if(state.hidden.includes(id))continue;const card=el('section','card'+(state.tiles[id].text?' text-only':''));card.dataset.id=id;card.setAttribute('aria-label',names[id]);const n=el('div','inside');card.append(n);contents(id,n);if(state.manage){n.inert=true;const tools=el('div','tools');tools.append(btn('Переключить подписи','T',()=>change(s=>s.tiles[id].text=!s.tiles[id].text)),btn('Скрыть виджет','◉',()=>change(s=>s.hidden.push(id))));const grip=btn('Изменить размер','◢',()=>{},'grip');card.append(tools,grip)}board.append(card)}updateWidgetScale();dock()}
 function updateStatus(){const n=$('#sync');if(n)n.textContent=syncStatus}
 let readRevision=0;
-async function refresh(){const revision=++readRevision;const account=await cloudAccount();const next=unpack(await dashboardData(account));if(revision!==readRevision)return;const prev=state;state=next;syncStatus=account?'Облачный профиль · локальная копия':'Сохранено в профиле браузера';updateStatus();if(prev.track!==next.track){audio.pause();audio.removeAttribute('src');audio.load();musicError=''}const keys=Object.keys(next).filter(k=>JSON.stringify(next[k])!==JSON.stringify(prev[k]));if(!board.children.length||keys.some(k=>['order','hidden','tiles','theme','wall','alignX','alignY','manage'].includes(k)))draw();else for(const k of keys){const id=({bookmarkSource:'bookmarks',linkCategories:'bookmarks',siteTiles:'bookmarks',bookmarkFolder:'bookmarks',cities:'weather',weatherCity:'weather',events:'calendar',engine:'search',track:'music',trackName:'music',musicTint:'music'})[k]||k;if(ids.includes(id))drawOne(id)}if(dialog.open&&activeDialog==='bookmark-search'&&keys.some(k=>['bookmarkSource','linkCategories','siteTiles'].includes(k)))updateBookmarkResults();if(activeDialog==='settings'&&dialog.open&&keys.some(k=>({appearance:['theme','wall'],search:['engine'],widgets:['hidden','order'],account:[],clock:['clock'],bookmarks:['bookmarkFolder','bookmarkSource','linkCategories','siteTiles']}[settingsPage]||['hidden','theme','wall','engine']).includes(k)))showSettings(settingsPage)}
+async function refresh(){const revision=++readRevision;const account=await cloudAccount();const next=unpack(await dashboardData(account));if(revision!==readRevision)return;const prev=state;state=next;if(prev.widgetScale!==next.widgetScale&&widgetScalePreview===null)updateWidgetScale();syncStatus=account?'Облачный профиль · локальная копия':'Сохранено в профиле браузера';updateStatus();if(prev.track!==next.track){audio.pause();audio.removeAttribute('src');audio.load();musicError=''}const keys=Object.keys(next).filter(k=>JSON.stringify(next[k])!==JSON.stringify(prev[k]));if(!board.children.length||keys.some(k=>['order','hidden','tiles','theme','wall','alignX','alignY','manage'].includes(k)))draw();else for(const k of keys){const id=({bookmarkSource:'bookmarks',linkCategories:'bookmarks',siteTiles:'bookmarks',bookmarkFolder:'bookmarks',cities:'weather',weatherCity:'weather',events:'calendar',engine:'search',track:'music',trackName:'music',musicTint:'music'})[k]||k;if(ids.includes(id))drawOne(id)}if(dialog.open&&activeDialog==='bookmark-search'&&keys.some(k=>['bookmarkSource','linkCategories','siteTiles'].includes(k)))updateBookmarkResults();if(activeDialog==='settings'&&dialog.open&&keys.some(k=>({appearance:['theme','wall'],search:['engine'],widgets:['hidden','order'],account:[],clock:['clock'],bookmarks:['bookmarkFolder','bookmarkSource','linkCategories','siteTiles']}[settingsPage]||['hidden','theme','wall','engine']).includes(k)))showSettings(settingsPage)}
 function dock(){const d=$('#dock');d.replaceChildren();d.classList.toggle('right',state.alignX==='start');for(const [k,chars,label] of [['alignX',['←','•','→'],'По горизонтали'],['alignY',['↑','•','↓'],'По вертикали']]){const vals=['start','center','end'],i=vals.indexOf(state[k]);const b=btn(label+' · '+['начало','центр','конец'][i],chars.join(''),()=>change(s=>s[k]=vals[(vals.indexOf(s[k])+1)%3]));d.append(b)}
  for(const [key,label,fn] of [['manage','Режим управления',()=>change(s=>s.manage=!s.manage)],['sort','Автосортировка',()=>change(s=>{const order=[...s.order].sort((a,b)=>widths[s.tiles[b].size]*s.tiles[b].rows-widths[s.tiles[a].size]*s.tiles[a].rows||ids.indexOf(a)-ids.indexOf(b));if(packAll({...s,order}))s.order=order;else throw Error('Сортировка с текущими размерами не помещается')})],['settings','Настройки',settings]]){const b=btn(label,'',fn);b.append(icon(key));if(key==='manage'){b.classList.toggle('active',state.manage);b.setAttribute('aria-pressed',state.manage)}d.append(b)}}
 function selectField(label,options,value,fn){const q=el('select');for(const [k,t] of options){const o=el('option','',t);o.value=k;q.append(o)}q.value=value;q.onchange=()=>fn(q.value);field(label,q)}
@@ -239,6 +306,7 @@ function showSettings(page){
     }
     renderCloud();
   }else if(page==='appearance'){
+    widgetScaleField();
     selectField('Тема',[['dark','Тёмная'],['light','Светлая']],state.theme,v=>change(s=>s.theme=v));
     selectField('Обои',[...Object.entries(wallpaperNames),['custom','Свои обои']],url(state.wall)?'custom':state.wall,v=>{
       if(v==='custom'){custom.hidden=false;address.focus()}else{custom.hidden=true;change(s=>s.wall=v)}
@@ -308,7 +376,13 @@ function consider(e){const g=gesture;if(!g||e.pointerId!==g.pid)return;const dx=
  if(best){g.next={order:best.order};place(g.ghost,box(best.b));g.ghost.hidden=false}}
 board.onpointermove=consider;board.onpointerup=e=>{if(gesture?.pid!==e.pointerId)return;consider(e);const {next,id}=gesture;cancelGesture();if(next)change(s=>{if(next.order)s.order=next.order;else Object.assign(s.tiles[id],next)})};board.onpointercancel=cancelGesture;board.onlostpointercapture=cancelGesture;window.addEventListener('blur',cancelGesture);window.addEventListener('keydown',e=>{if(e.key==='Escape')cancelGesture()});
 new ResizeObserver(()=>{cancelGesture();layout()}).observe(board);
-$('#close').onclick=()=>dialog.close();dialog.onclose=()=>activeDialog='';dialog.onclick=e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close()}};
+$('#close').onclick=()=>dialog.close();dialog.onclose=()=>{
+  activeDialog='';
+  if (widgetScalePreview !== null) {
+    widgetScalePreview = null;
+    updateWidgetScale();
+  }
+};dialog.onclick=e=>{if(e.target===dialog){const r=dialog.getBoundingClientRect();if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)dialog.close()}};
 audio.ondurationchange=()=>drawOne('music');
 audio.ontimeupdate=()=>{
   const line=board.querySelector('.local-timeline');
