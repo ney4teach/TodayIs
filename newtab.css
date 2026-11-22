@@ -154,55 +154,94 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .bookmark-settings-group .bookmark-remove:hover { color:var(--ink) }
 .card[data-id=music]{container:music / size}
 .card[data-id=music] .inside{overflow:hidden;justify-content:center;gap:5px;padding:clamp(7px,9cqh,18px) clamp(10px,4cqw,22px)}
-.card[data-id=music] .inside:has(.system-track)>.cap{display:none}
-.system-track{display:grid;grid-template-columns:auto minmax(0,1fr);align-items:center;gap:5px 14px;min-width:0}
-.system-cover{width:clamp(34px,min(24cqw,52cqh),92px);aspect-ratio:1;display:grid;place-items:center;border-radius:13px;background:var(--field);color:var(--soft);font-size:24px;overflow:hidden}
+.card[data-id=music] .inside:has(.system-track,.music-empty)>.cap{display:none}
+.card.music-tinted{
+  --music-fill:color-mix(in srgb,var(--cover-color) 33%,var(--glass));
+  --music-accent:color-mix(in srgb,var(--cover-color) 36%,white);
+  background:var(--music-fill);
+}
+.light .card.music-tinted{
+  --music-fill:color-mix(in srgb,var(--cover-color) 18%,white);
+  --music-accent:color-mix(in srgb,var(--cover-color) 45%,#101019);
+}
+.system-track{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;
+  gap:4px clamp(6px,2cqw,16px);min-width:0;
+}
+.system-cover{
+  width:clamp(32px,min(15cqw,43cqh),70px);aspect-ratio:1;display:grid;place-items:center;
+  border-radius:10px;background:var(--field);color:var(--music-accent,var(--soft));font-size:1.4em;overflow:hidden;
+}
 .system-cover img{width:100%;height:100%;object-fit:cover}
 .system-track-body{min-width:0;display:grid;gap:2px}
 .system-track-body strong,.system-track-body span,.music>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
-.system-track-body strong{font-size:clamp(14px,4cqw,21px);line-height:1.16;letter-spacing:-.025em}
-.system-track-body .muted{font-size:12px;line-height:1.2}
-.system-controls{display:flex;align-items:center;gap:4px}
-.system-controls button{width:28px;height:25px;padding:0;border:0;border-radius:50%;background:transparent}
-.system-controls .play{background:var(--accent);color:white}
-.music-timeline{grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:8px;color:var(--muted);font:11px/1 system-ui;font-variant-numeric:tabular-nums}
+.system-track-body strong{font-size:1.15em;line-height:1.15}
+.system-track-body .muted{font-size:.85em;line-height:1.2}
+.system-controls,.music-sources,.music-empty{display:flex;align-items:center;gap:4px;min-width:0}
+.system-controls button,.music-sources button{
+  flex:none;display:grid;place-items:center;min-width:26px;height:28px;padding:0 4px;
+  border:1px solid transparent;border-radius:8px;background:transparent;color:var(--ink);font:inherit;
+}
+.system-controls button:disabled,.music-sources button:disabled{opacity:.5}
+.system-controls button:hover:not(:disabled),.music-sources button:hover:not(:disabled){background:var(--line)}
+.system-controls .play{background:var(--music-accent,var(--accent));color:var(--accent-ink,white)}
+.card.music-tinted .system-controls .play{color:#14141a}
+.light .card.music-tinted .system-controls .play{color:white}
+.system-controls .play:hover:not(:disabled){background:var(--music-accent,var(--accent));filter:brightness(.9)}
+.music-sources{
+  justify-self:end;padding-inline-start:6px;border-inline-start:1px solid color-mix(in srgb,var(--ink) 19%,transparent);
+}
+.music-sources button{min-width:24px;height:25px;font-size:.85em}
+.music-sources button[aria-pressed=true]{
+  color:var(--music-accent,var(--soft));border-color:currentColor;background:var(--field);
+}
+.music-empty{flex-wrap:wrap;justify-content:center}
+.music-empty>button{max-width:100%;font:inherit;line-height:1.15}
+.music-timeline{
+  grid-column:1/-1;display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;
+  gap:7px;color:var(--muted);font-size:.8em;line-height:1;font-variant-numeric:tabular-nums;
+}
+.system-track .music-timeline{--music-duration-opacity:0}
+.system-track .music-timeline:has(input:not(:disabled):hover,input:focus-visible,input:active),
+.system-track .music-timeline[data-drag]{--music-duration-opacity:1}
+.system-track .music-timeline span{opacity:var(--music-duration-opacity);transition:opacity 150ms ease}
 .music-timeline input{appearance:none;width:100%;height:18px;margin:0;padding:0;border:0;background:transparent;cursor:pointer}
-.music-timeline input::-webkit-slider-runnable-track{height:4px;border-radius:5px;background:linear-gradient(to right,var(--soft) var(--progress),var(--line) var(--progress))}
-.music-timeline input::-webkit-slider-thumb{appearance:none;width:10px;height:10px;margin-top:-3px;border-radius:50%;background:var(--soft)}
+.music-timeline input::-webkit-slider-runnable-track{
+  height:4px;border-radius:5px;background:linear-gradient(to right,
+  var(--music-accent,var(--soft)) var(--progress),color-mix(in srgb,var(--ink) 22%,transparent) var(--progress));
+}
+.music-timeline input::-webkit-slider-thumb{
+  appearance:none;width:10px;height:10px;margin-top:-3px;border-radius:50%;background:var(--music-accent,var(--soft));
+}
 .music-timeline input:disabled{cursor:default}
 .music-timeline input:disabled::-webkit-slider-thumb{opacity:0}
-@container music (max-height:100px) and (min-width:260px){
-  .system-track{grid-template-columns:auto minmax(0,1fr);row-gap:0}
-  .system-track-body{grid-template-columns:minmax(0,1fr) auto}
-  .system-track-body .muted{grid-column:1}
-  .system-controls{grid-column:2;grid-row:1/3}
-  .system-cover{width:min(40cqh,48px)}
+.system-track :focus-visible,.music-empty :focus-visible{outline:2px solid var(--music-accent,var(--soft));outline-offset:1px}
+@container music (max-width:320px){
+  .system-track{grid-template-columns:minmax(0,1fr) auto;column-gap:5px}
+  .system-cover,.system-track .music-timeline{display:none}
+  .system-controls{grid-row:2;grid-column:1}
+  .music-sources{grid-row:2;grid-column:2}
+  .system-track-body{grid-column:1/-1}
+  .system-controls,.music-sources{gap:2px}
 }
-@container music (max-width:185px){
-  .system-track{grid-template-columns:minmax(0,1fr);gap:2px}
-  .system-cover{display:none}
+@container music (max-height:88px){
+  .card[data-id=music] .inside{padding-block:5px}
+  .system-track{row-gap:2px}
+  .system-controls button,.music-sources button{height:23px}
 }
-@container music (max-height:85px) and (max-width:259px){
-  .system-cover,.system-track-body .muted{display:none}
-  .system-track{grid-template-columns:minmax(0,1fr);gap:0}
-  .system-track-body{gap:0}
-  .system-controls button{height:21px}
+@container music (max-height:64px){
+  .card[data-id=music] .inside{padding-block:1px}
+  .system-track{grid-template-columns:minmax(0,1fr) auto auto;gap:2px}
+  .system-cover,.system-track .music-timeline{display:none}
+  .system-track-body{grid-row:1;grid-column:1;gap:0}
+  .system-track-body strong{font-size:.9em;line-height:1}
+  .system-track-body .muted{font-size:.75em;line-height:1}
+  .system-controls{grid-row:1;grid-column:2;gap:1px}
+  .music-sources{grid-row:1;grid-column:3;gap:1px;padding-inline-start:2px}
+  .system-controls button,.music-sources button{min-width:19px;height:20px;padding:0 2px}
 }
-.card.music-tinted{background:linear-gradient(118deg,color-mix(in srgb,var(--cover-color) 25%,transparent),transparent 88%),var(--surface)}
-.card.music-tinted .music-timeline{--soft:color-mix(in srgb,var(--cover-color) 65%,white)}
-.light .card.music-tinted .music-timeline{--soft:color-mix(in srgb,var(--cover-color) 68%,#222)}
-.system-controls{min-width:0}
-.system-controls button{flex:none}
-.music-source{min-width:0;max-width:100%;padding:2px 4px;font-size:11px;border-color:transparent;background:var(--field);color:var(--ink);text-overflow:ellipsis}
-.system-controls .music-source{margin-left:auto;width:min(42%,160px)}
-.music-source option{background:var(--glass);color:var(--ink)}
-@container music (max-height:100px) and (min-width:260px){
- .system-track-body:has(.music-source){grid-template-columns:minmax(64px,1fr) minmax(125px,1.4fr)}
-}
-@container music (max-width:210px){
- .system-controls{gap:1px}
- .system-controls button{width:22px}
- .system-controls .music-source{flex:1;width:0}
+@media (prefers-reduced-motion:reduce){
+  .system-track .music-timeline span{transition:none}
 }
 
 .widget-scale {display:grid;gap:8px}

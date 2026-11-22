@@ -34,29 +34,34 @@ const systemMusic = (() => {
   function launchButton() {
     const label = launching ? 'Запускаем…' : 'Включить Яндекс Музыку';
     const button = btn(label,label,launchYandex);
+    button.dataset.musicControl = 'launch';
     button.disabled = launching;
     return button;
   }
   function sourcePicker() {
-    const select = el('select','music-source');
-    select.setAttribute('aria-label','Источник воспроизведения');
-    select.title = 'Выбрать и закрепить источник';
     const sources = media.sources || [];
-    const active = sources.find(s => s.id === media.sourceId);
-    select.add(new Option(active && !pin ? 'Авто · ' + active.label : 'Автоматически',''));
-    for (const source of sources) select.add(new Option(source.label,source.id));
-    if (pin && !active) {
-      select.add(new Option('Выберите источник','waiting'));
-      select.lastChild.disabled = true;
+    const current = sources.find(source => source.id === media.sourceId);
+    const group = el('div','music-sources');
+    group.setAttribute('role','group');
+    group.setAttribute('aria-label','Источник воспроизведения');
+    const auto = btn('Автоматический выбор источника','А',() => selectSource('',''));
+    auto.dataset.musicControl = 'auto';
+    auto.setAttribute('aria-pressed',String(!pin));
+    group.append(auto);
+    if (sources.length) {
+      const index = pin ? sources.indexOf(current) : -1;
+      const next = sources[index < 0 ? Math.max(0,sources.indexOf(current)) : (index + 1) % sources.length];
+      const label = pin && current ? 'Источник: ' + current.label + (current !== next ? '. Переключить на ' + next.label : '')
+        : 'Выбрать источник: ' + next.label;
+      const cycle = btn(label,'⇄',() => selectSource(next.app,next.id));
+      cycle.dataset.musicControl = 'source';
+      cycle.setAttribute('aria-pressed',String(Boolean(pin && current)));
+      group.append(cycle);
     }
-    select.add(new Option('Включить Яндекс Музыку','launch-yandex'));
-    select.value = pin ? active?.id || 'waiting' : '';
-    select.onchange = () => {
-      if (select.value === 'launch-yandex') { launchYandex(); return; }
-      const source = sources.find(s => s.id === select.value);
-      selectSource(source?.app || '',source?.id || '');
-    };
-    return select;
+    const launch = launchButton();
+    launch.textContent = '↗';
+    group.append(launch);
+    return group;
   }
   function clock(seconds) {
     const whole = Math.max(0, Math.floor(seconds));
@@ -76,6 +81,7 @@ const systemMusic = (() => {
     line.dataset.start = data.start;
     const slider = el('input');
     slider.type = 'range';
+    slider.dataset.musicControl = 'seek';
     slider.min = data.seek ? data.lower : data.start;
     slider.max = data.seek ? data.upper : data.end;
     slider.step = 'any';
@@ -89,11 +95,39 @@ const systemMusic = (() => {
     paint(line,data.position);
     return line;
   }
+  function trackIdentity(item) {
+    return JSON.stringify([item.status,item.sourceId,item.trackKey,item.title,item.artist,item.cover]);
+  }
+  let changingTrack = false, renderedRevision = 0;
+  function redrawMusic(fadeIn = false) {
+    const focused = document.activeElement;
+    const control = focused?.closest('.card[data-id="music"]') ? focused.dataset.musicControl : '';
+    drawOne('music');
+    if (control) document.querySelector('.card[data-id="music"] [data-music-control="' + control + '"]')?.focus({preventScroll:true});
+    if (fadeIn) document.querySelector('.card[data-id="music"] .inside')?.animate(
+      [{opacity:0},{opacity:1}],{duration:210,easing:'ease-out'});
+  }
   function update(next) {
     const {position, ...details} = next;
     const {position: previousPosition, ...previous} = media;
+    const changedTrack = renderedRevision !== revision || trackIdentity(media) !== trackIdentity(next);
     media = next;
-    if (JSON.stringify(details) !== JSON.stringify(previous)) return drawOne('music');
+    if (changingTrack) return;
+    if (changedTrack || JSON.stringify(details) !== JSON.stringify(previous)) {
+      const panel = document.querySelector('.card[data-id="music"] .inside');
+      if (changedTrack && panel && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        changingTrack = true;
+        const fade = panel.animate([{opacity:1},{opacity:0}],{duration:120,easing:'ease-in',fill:'forwards'});
+        const finish = () => {
+          changingTrack = false;
+          fade.cancel();
+          redrawMusic(true);
+        };
+        fade.finished.then(finish,finish);
+        return;
+      }
+      return redrawMusic();
+    }
     const line = document.querySelector('.system-track .music-timeline');
     if (line && !line.dataset.drag && position !== previousPosition) paint(line,position);
   }
@@ -146,7 +180,7 @@ const systemMusic = (() => {
     send('read');
   }
   function send(action, payload = {}) {
-    if (!port || (action !== 'read' && sentRevision !== revision)) return;
+    if (!port || (action !== 'read' && (changingTrack || sentRevision !== revision))) return;
     if (pending) {
       if (action !== 'read') queued = {action, payload, generation: media.generation};
       return;
@@ -166,6 +200,7 @@ const systemMusic = (() => {
   window.addEventListener('pagehide', stop);
 
   function render(n) {
+    renderedRevision = revision;
     start();
     const card = n.closest('.card');
     const tinted = media.status === 'active' && state.musicTint !== false && /^#[0-9a-f]{6}$/i.test(media.tint);
@@ -173,13 +208,16 @@ const systemMusic = (() => {
     if (tinted) card.style.setProperty('--cover-color',media.tint);
     else card.style.removeProperty('--cover-color');
     if (media.status !== 'active') {
-      if (pin && media.status === 'idle') {
-        n.append(el('span','muted','Закреплённый источник недоступен'),sourcePicker());
-        return true;
-      }
       if (media.status === 'idle') {
-        n.append(launchButton());
-        return !state.track;
+        if (state.track && !pin && !media.sources?.length) {
+          n.append(launchButton());
+          return false;
+        }
+        const empty = el('div','music-empty');
+        if (media.sources?.length) empty.append(sourcePicker());
+        else empty.append(launchButton());
+        n.append(empty);
+        return true;
       }
       if (state.track) return false;
       const labels = { idle: 'Сейчас ничего не играет', connecting: 'Ищем плеер…',
@@ -205,11 +243,12 @@ const systemMusic = (() => {
     const buttons = el('div','system-controls');
     const toggle = media.playing ? 'pause' : 'play';
     for (const [key,label,symbol] of [['previous','Предыдущий трек','⏮'],[toggle,media.playing?'Пауза':'Воспроизвести',media.playing?'Ⅱ':'▶'],['next','Следующий трек','⏭']]) {
-      if (media[key]) buttons.append(btn(label,symbol,()=>send(key),key === toggle ? 'play' : ''));
+      const control = btn(label,symbol,()=>send(key),key === toggle ? 'play' : '');
+      control.dataset.musicControl = key === toggle ? 'playback' : key;
+      control.disabled = !media[key];
+      buttons.append(control);
     }
-    if (media.sources) buttons.append(sourcePicker());
-    body.append(buttons);
-    row.append(art,body);
+    row.append(art,body,buttons,sourcePicker());
     if (media.end > media.start) {
       const trackKey = media.trackKey;
       row.append(timeline(media, seconds => send('seek',{seconds,trackKey})));
