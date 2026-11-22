@@ -85,6 +85,17 @@ dialog[data-view="settings"] #fields {gap:9px;margin-top:26px}
 .settings-chevron {color:var(--muted)}
 .settings-widget {display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid var(--line)}
 .settings-url:not([hidden]) {display:grid;gap:10px}
+.wallpaper-upload{display:grid;grid-template-columns:44px minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px;border:1px solid var(--line);border-radius:14px;background:var(--field)}
+.wallpaper-preview{display:grid;place-items:center;width:44px;height:40px;border-radius:9px;overflow:hidden;color:var(--soft);background:color-mix(in srgb,var(--accent) 13%,transparent)}
+.wallpaper-preview img{width:100%;height:100%;object-fit:cover}
+.wallpaper-upload-copy{display:grid;gap:2px;min-width:0}
+.wallpaper-upload-copy small{color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.wallpaper-file-button{position:relative;display:grid;place-items:center;min-height:36px;padding:6px 9px;border:1px solid var(--line);border-radius:9px;background:var(--field);font-size:.9em;text-align:center;cursor:pointer}
+.wallpaper-file-button:hover{color:var(--soft)}
+.wallpaper-file-button:focus-within{outline:2px solid var(--soft);outline-offset:2px}
+.wallpaper-file{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer}
+.wallpaper-file:disabled{cursor:wait}
+@media(max-width:380px){.wallpaper-upload{grid-template-columns:44px minmax(0,1fr)}.wallpaper-file-button{grid-column:1/-1}}
 dialog[data-view="settings"] .cloud-settings {border:0;padding:0}
 @media(prefers-reduced-motion:no-preference){
   dialog[open][data-view="settings"] {animation:settings-in .24s cubic-bezier(.2,.8,.2,1)}
