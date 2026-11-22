@@ -16,17 +16,17 @@ function calendarMonth(selectedMonth, onMove, onDate, selected) {
   for (let i=1;i<=new Date(ym.getFullYear(),ym.getMonth()+1,0).getDate();i++) {
     const date = day(new Date(ym.getFullYear(),ym.getMonth(),i));
     const {shifts,events} = calendarEntries(state.events,date);
-    const kinds = [...new Set(shifts.map(entry=>entry.shift.kind))];
+    const primary = shifts.find(({shift})=>shift.kind !== 'extra')?.shift.kind;
+    const hasExtra = shifts.some(({shift})=>shift.kind === 'extra');
+    const kind = primary ?? (hasExtra ? 'extra' : null);
     const descriptions = [...shifts.map(({shift})=>[shiftTypes[shift.kind][0],shiftTime(shift)].filter(Boolean).join(' ')),...events.map(event=>event.text)];
     const cell = btn([calendarDateLabel(date),...descriptions].join(' · '),'',()=>onDate(date),'calendar-day');
+    if (kind) cell.classList.add('calendar-type-'+kind);
+    if (primary && hasExtra) cell.classList.add('calendar-with-extra');
+    if (events.length) cell.classList.add('calendar-with-event');
     if (date === today) cell.setAttribute('aria-current','date');
     if (selected) cell.setAttribute('aria-pressed',String(date === selected));
     cell.append(el('span','',i));
-    const marks = el('span','calendar-marks');
-    marks.setAttribute('aria-hidden','true');
-    for (const kind of kinds) marks.append(el('span','calendar-mark calendar-type-'+kind,shiftTypes[kind][1]));
-    if (events.length) marks.append(el('span','calendar-event-mark','•'));
-    cell.append(marks);
     grid.append(cell);
   }
   return [head,grid];
@@ -54,9 +54,11 @@ function openCalendar(date, focus = '') {
   overview.append(...calendarMonth(shown,next=>openCalendar(day(next),next > shown ? 'next' : 'previous'),
     next=>openCalendar(next,'date'),date));
   const legend = el('div','calendar-legend');
-  for (const kind of ['day','night','full','off','extra']) {
+  for (const kind of Object.keys(shiftTypes)) {
     const item = el('span');
-    item.append(el('b','calendar-mark calendar-type-'+kind,shiftTypes[kind][1]),document.createTextNode(shiftTypes[kind][0]));
+    const swatch = el('span','calendar-swatch calendar-type-'+kind);
+    swatch.setAttribute('aria-hidden','true');
+    item.append(swatch,document.createTextNode(shiftTypes[kind][0]));
     legend.append(item);
   }
   overview.append(legend);
@@ -245,8 +247,7 @@ function scheduleForm(date) {
       const date = previewMonth.value+'-'+String(i).padStart(2,'0');
       const shift = scheduleShift(rule,date);
       if (!shift) continue;
-      const item = el('span','calendar-preview-day',String(i));
-      item.append(el('b','calendar-mark calendar-type-'+shift.kind,shiftTypes[shift.kind][1]));
+      const item = el('span','calendar-preview-day calendar-type-'+shift.kind,String(i));
       item.title = [shiftTypes[shift.kind][0],shiftTime(shift)].filter(Boolean).join(' · ');
       item.setAttribute('aria-label',calendarDateLabel(date)+' · '+item.title);
       previewList.append(item);
