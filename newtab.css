@@ -119,13 +119,38 @@ dialog[data-view="settings"] .cloud-settings {border:0;padding:0}
 }
 .activity-button {width:50%;height:100%;border:0;padding:0;background:transparent;display:grid;place-items:center;container-type:size}
 .activity-button:focus-visible {outline-offset:-4px}
-.activity-ring {width:min(85cqw,84cqh,128px);aspect-ratio:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2}
-.activity-ring::before {content:'';position:absolute;inset:0;border-radius:50%;background:var(--activity-fill);mask:radial-gradient(closest-side,transparent 78%,black 80%)}
-.activity-ring strong {font-size:min(15cqw,15cqh,19px);font-variant-numeric:tabular-nums}
-.activity-ring small {font-size:min(12cqw,11cqh,12px)}
-.activity-row {display:grid;grid-template-columns:8px 1fr auto;align-items:center;gap:10px}
-.activity-row i {height:8px;border-radius:50%}
-.activity-row span {overflow-wrap:anywhere}
+.activity-rings {display:block;position:relative;width:min(78cqw,59cqh,92px);aspect-ratio:1}
+.activity-rings i {position:absolute;inset:var(--inset);border-radius:50%;background:conic-gradient(var(--arc) 0 var(--sweep),color-mix(in srgb,var(--arc) 15%,transparent) var(--sweep) 360deg);mask:radial-gradient(closest-side,transparent calc(100% - var(--band) * 2),black calc(101% - var(--band) * 2))}
+.activity-button {container-name:activity;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:min(4cqh,4px);color:var(--ink)}
+.activity-copy {display:grid;text-align:center;min-width:0;line-height:1.12}
+.activity-copy>small {font-size:min(10px,13cqw,14cqh);white-space:nowrap}
+.activity-copy>strong {font-size:min(18px,17cqw,22cqh);font-variant-numeric:tabular-nums;white-space:nowrap}
+.activity-legend {display:none}
+.activity-key {display:flex;align-items:center;gap:6px}
+.activity-key::before {content:"";width:.55em;height:.55em;border-radius:50%;background:var(--arc);flex:none}
+@container activity (min-width:168px) and (min-height:90px) {
+  .activity-copy {text-align:left}
+  .activity-legend {display:grid;gap:3px;margin-top:5px;font-size:11px}
+  .activity-key b {margin-left:auto;padding-left:6px;font-weight:500}
+}
+.card[data-id=clock] .activity-button:has(.activity-rings) {display:grid;grid-auto-flow:row;align-content:center;justify-items:center}
+@container (min-width:368px) {
+  .card[data-id=clock] .activity-button:has(.activity-rings) {grid-auto-flow:column;align-items:center;gap:8px}
+}
+.activity-summary {display:flex;align-items:center;gap:18px}
+.activity-summary .activity-rings {width:92px;flex:none}
+.activity-summary strong {display:block;font-size:clamp(24px,6vw,34px);line-height:1.2;font-variant-numeric:tabular-nums}
+.activity-group {border-top:1px solid var(--line);padding-top:8px}
+.activity-heading {display:flex;align-items:center;gap:8px;list-style:none;min-height:34px}
+summary.activity-heading {cursor:pointer}
+.activity-heading .activity-key {flex:1}
+.activity-heading small {min-width:3em;text-align:right}
+.activity-heading::after {content:"";width:6px;height:6px;flex:none}
+summary.activity-heading::after {border:solid var(--muted);border-width:0 1px 1px 0;transform:rotate(45deg)}
+details[open]>.activity-heading::after {transform:rotate(225deg)}
+.activity-site {display:flex;justify-content:space-between;gap:12px;padding:5px 16px;color:var(--muted);font-size:13px}
+.activity-site span:first-child {overflow-wrap:anywhere}
+.activity-site span:last-child {white-space:nowrap}
 
 .card[data-id="bookmarks"] .cap > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 .card[data-id="bookmarks"] .cap > button:first-child { margin-left:0; font-size:20px }

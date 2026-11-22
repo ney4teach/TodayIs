@@ -183,7 +183,41 @@ function renderClock(container) {
     n.append(next);
   }
 }
-const activityColors = ['#8585ff','#36c7aa','#f3a95d','#cf83e9','#61aae8','#9695a3'];
+// Match complete domain labels, including subdomains. Unknown sites keep their time.
+const activityCategories = [
+  {name:'Медиа и игры',color:'#ff527e',domains:'youtube.com youtu.be twitch.tv rutube.ru kinopoisk.ru okko.tv ivi.ru netflix.com spotify.com music.yandex.ru music.yandex.com store.steampowered.com steamcommunity.com'},
+  {name:'Работа и учёба',color:'#abe54a',domains:'github.com gitlab.com stackoverflow.com developer.mozilla.org notion.so notion.site figma.com docs.google.com drive.google.com calendar.google.com disk.yandex.ru tracker.yandex.ru wikipedia.org stepik.org coursera.org chatgpt.com'},
+  {name:'Общение',color:'#36cddf',domains:'vk.com vk.ru ok.ru telegram.org t.me whatsapp.com discord.com reddit.com x.com mail.google.com mail.yandex.ru e.mail.ru teams.microsoft.com slack.com'},
+  {name:'Другое',color:'#a59cce',domains:''}
+].map(group=>({...group,domains:group.domains.split(' ').filter(Boolean)}));
+
+function activityBreakdown(rows) {
+  const groups=activityCategories.map(category=>({...category,sites:[],time:0}));
+  let total=0;
+  for (const [site,time] of rows) {
+    const host=site.toLowerCase().replace(/\.$/,'');
+    const group=groups.find(g=>g.domains.some(d=>host===d || host.endsWith('.'+d))) || groups.at(-1);
+    group.sites.push([site,time]);
+    group.time+=time;
+    total+=time;
+  }
+  return {groups,total};
+}
+
+function activityRings(groups,total) {
+  const rings=el('span','activity-rings');
+  rings.setAttribute('aria-hidden','true');
+  groups.forEach((group,index)=>{
+    const arc=el('i');
+    arc.style.setProperty('--inset',(index*11+1)+'%');
+    arc.style.setProperty('--band',(8/(1-2*(index*0.11+0.01)))+'%');
+    arc.style.setProperty('--arc',group.color);
+    arc.style.setProperty('--sweep',(total?360*group.time/total:0)+'deg');
+    rings.append(arc);
+  });
+  return rings;
+}
+
 let activityRows = [], activityReady = false, activityRequest = 0;
 function duration(ms) {
   const minutes = Math.floor(ms/60000);
@@ -192,28 +226,48 @@ function duration(ms) {
   return Math.floor(minutes/60)+' ч'+(minutes%60?' '+minutes%60+' мин':'');
 }
 function paintActivity(button) {
-  const total = activityRows.reduce((sum,row)=>sum+row[1],0);
-  let angle = 0;
-  const stops = activityRows.slice(0,6).map((row,index)=>{
-    const start = angle;
-    angle = index===5 ? total/240000 : angle+row[1]/240000;
-    return activityColors[index]+' '+start+'deg '+angle+'deg';
-  });
-  stops.push('var(--line) '+angle+'deg 360deg');
-  button.style.setProperty('--activity-fill','conic-gradient('+stops.join(',')+')');
-  button.querySelector('strong').textContent = activityReady ? duration(total) : '—';
-  button.setAttribute('aria-label','Активность на сайтах за 24 часа. '+(activityReady?duration(total):'Нет данных')+'. Открыть по сайтам');
+  const {groups,total}=activityBreakdown(activityRows);
+  const value=activityReady?duration(total):'—';
+  const copy=el('span','activity-copy');
+  copy.append(el('small','','На сайтах · 24 ч'),el('strong','',value));
+  const legend=el('span','activity-legend');
+  for (const group of groups) {
+    const line=el('span','activity-key',group.name);
+    line.style.setProperty('--arc',group.color);
+    line.append(el('b','',total?Math.round(group.time/total*100)+'%':'—'));
+    legend.append(line);
+  }
+  copy.append(legend);
+  button.replaceChildren(activityRings(groups,total),copy);
+  button.title='Время на сайтах за последние 24 часа · '+value;
+  button.setAttribute('aria-label',button.title+'. Открыть категории и сайты');
 }
 function activityDetails() {
-  modal('Активность за 24 часа','activity');
-  if (!activityRows.length) {
-    fields.append(el('p','muted',activityReady?'Пока нет времени на сайтах. Здесь появятся сайты, которые ты открываешь после включения учёта.':'Не удалось получить статистику. Перезагрузи расширение на странице расширений и открой новую вкладку.'));
+  const expanded=new Set(Array.from(fields.querySelectorAll('.activity-group[open]'),node=>node.dataset.name));
+  const {groups,total}=activityBreakdown(activityRows);
+  modal('Активность на сайтах','activity');
+  const hero=el('div','activity-summary'), copy=el('div');
+  copy.append(el('small','','За последние 24 часа'),el('strong','',activityReady?duration(total):'—'));
+  hero.append(activityRings(groups,total),copy);fields.append(hero);
+  if (!total) {
+    fields.append(el('p','muted',activityReady?'Здесь появится время, проведённое на сайтах в активной вкладке.':'Не удалось получить статистику. Перезагрузи расширение и открой новую вкладку.'));
+    return;
   }
-  activityRows.forEach(([host,time],index)=>{
-    const row=el('div','activity-row'), dot=el('i');
-    dot.style.background=activityColors[Math.min(index,5)];
-    row.append(dot,el('span','',host),el('strong','',duration(time)));fields.append(row);
-  });
+  fields.append(el('small','','Каждое кольцо показывает долю категории в общем времени на сайтах.'));
+  for (const group of groups) {
+    const section=el(group.time?'details':'div','activity-group');
+    section.dataset.name=group.name;
+    section.style.setProperty('--arc',group.color);
+    const head=el(group.time?'summary':'div','activity-heading');
+    head.append(el('span','activity-key',group.name),el('strong','',duration(group.time)),el('small','',Math.round(group.time/total*100)+'%'));
+    section.append(head);
+    if (group.time) section.open=expanded.has(group.name);
+    for (const [host,time] of group.sites) {
+      const row=el('div','activity-site');
+      row.append(el('span','',host),el('span','',duration(time)));section.append(row);
+    }
+    fields.append(section);
+  }
 }
 async function refreshActivity() {
   const revision=++activityRequest;
@@ -227,8 +281,6 @@ async function refreshActivity() {
 }
 function activityButton() {
   const button=btn('Активность за 24 часа','',activityDetails,'activity-button');
-  const ring=el('span','activity-ring');
-  ring.append(el('strong'),el('small','','за 24 ч'));button.append(ring);
   paintActivity(button);refreshActivity();
   return button;
 }
