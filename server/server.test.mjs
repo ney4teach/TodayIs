@@ -34,11 +34,21 @@ test('OAuth callbacks, first import, second installation, changes and logout', a
   }
   const first=await login('google'), second=await login('google'), yandex=await login('yandex');
   const profile=async(token,payload)=>(await (await post('/profile',payload,token)).json()).data;
-  const seed={'gntd.theme':'light','gntd.tasks.a':{id:'a',text:'Купить хлеб'}};
+  const seed={
+    'gntd.theme':'light','gntd.tasks.a':{id:'a',text:'Купить хлеб'},
+    'gntd.widgetScale':80,'gntd.clock':{face:'analog',cities:['local'],zone:'local'},
+    'gntd.musicTint':false,'gntd.bookmarkSource':'custom','gntd.bookmarkFolder':'1',
+    'gntd.linkCategories.news':{id:'news',title:'Новости'},
+    'gntd.siteTiles.example':{id:'example',categoryId:'news',title:'Пример',url:'https://example.org/'}
+  };
   assert.deepEqual(await profile(first,{seed}),seed);
   assert.deepEqual(await profile(second,{seed:{'gntd.theme':'dark'}}),seed);
-  await profile(first,{set:{'gntd.engine':'Яндекс'},remove:[]});
-  assert.deepEqual(await profile(second,{set:{},remove:['gntd.tasks.a']}),{'gntd.theme':'light','gntd.engine':'Яндекс'});
+  const updated={'gntd.engine':'Яндекс','gntd.widgetScale':90};
+  await profile(first,{set:updated,remove:[]});
+  const removed=['gntd.tasks.a','gntd.linkCategories.news','gntd.siteTiles.example'];
+  const expected={...seed,...updated};
+  for (const key of removed) delete expected[key];
+  assert.deepEqual(await profile(second,{set:{},remove:removed}),expected);
   assert.deepEqual(await profile(yandex,{seed:{}}),{});
   assert.equal((await post('/profile',{set:{'gntd.weather':{}},remove:[]},first)).status,400);
   await request(origin+'/session',{method:'DELETE',headers:{Authorization:'Bearer '+first}});

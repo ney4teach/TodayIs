@@ -41,7 +41,7 @@ async function external(url, options) {
   if (!response.ok) fail(502, 'Провайдер не подтвердил вход');
   return response.json();
 }
-const allowed = /^gntd\.(order|hidden|tiles|theme|wall|engine|alignX|alignY|manage|track|trackName|weatherCity|(tasks|events|cities)\.[\w-]{1,150})$/;
+const allowed = /^gntd\.(order|hidden|tiles|theme|wall|engine|alignX|alignY|manage|widgetScale|clock|musicTint|track|trackName|bookmarkSource|bookmarkFolder|weatherCity|(tasks|events|cities|linkCategories|siteTiles)\.[\w-]{1,150})$/;
 function settings(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(k => !allowed.test(k))) fail(400, 'Некорректные настройки');
   return data;
