@@ -239,7 +239,13 @@ function activityRing(groups,total) {
     image.src=source;
     image.alt='';
     image.draggable=false;
-    mosaic.append(image);
+    if (state.clock.activityCenter==='mascot') {
+      const peek=el('span','activity-peek');
+      peek.append(image);
+      mosaic.append(peek);
+    } else {
+      mosaic.append(image);
+    }
   }
   return mosaic;
 }

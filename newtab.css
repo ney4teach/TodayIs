@@ -147,6 +147,21 @@ body.light :is(.activity-button,dialog[data-view=activity]) {
   display:block;width:45%;height:65%;object-fit:contain;pointer-events:none;
 }
 .activity-center-image[data-center=logo] {width:34%;height:60%;border-radius:20%}
+.activity-peek {
+  position:absolute;right:5%;bottom:2px;width:46%;aspect-ratio:128 / 74;
+  max-height:90%;overflow:hidden;pointer-events:none;
+}
+.activity-peek .activity-center-image {
+  inset:0 auto auto 0;transform:none;width:100%;height:auto;
+  clip-path:inset(0 11% 15%);filter:drop-shadow(0 1px 2px #40251040);
+}
+.activity-peek::before,.activity-peek::after {
+  content:"";position:absolute;bottom:0;width:11%;aspect-ratio:1;
+  border:1px solid #b97a25;border-radius:50%;background:#ffe7aa;
+  box-shadow:0 1px 2px #40251030;
+}
+.activity-peek::before {left:6%}
+.activity-peek::after {right:6%}
 .card[data-id=clock] .clock-left {
   width:50%;align-items:center;padding:0 10px;min-width:0;text-align:center;
 }
