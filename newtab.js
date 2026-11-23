@@ -2,7 +2,8 @@
 const $ = s => document.querySelector(s);
 const board = $('#board'), dialog = $('#dialog'), fields = $('#fields');
 const names = {greeting:'Приветствие',clock:'Часы',search:'Поиск',weather:'Погода',bookmarks:'Закладки',calendar:'Календарь',tasks:'Задачи',quote:'Цитата',music:'Музыка',system:'Система'};
-const ids = Object.keys(names), widths = {xs:1,sm:2,md:3,lg:4,xl:6}, gap = 16, rows = 5;
+const isWebApp = document.documentElement.classList.contains('web-app');
+const ids = Object.keys(names).filter(id=>!isWebApp || !['music','system'].includes(id)), widths = {xs:1,sm:2,md:3,lg:4,xl:6}, gap = 16, rows = 5;
 const engines = {Google:'https://www.google.com/search?q=',Яндекс:'https://yandex.ru/search/?text=',DuckDuckGo:'https://duckduckgo.com/?q='};
 const quotes = ['Большие дела начинаются с маленького шага.','Оставь сегодня место для любопытства.','Иногда лучшая идея приходит во время прогулки.','Даже короткая пауза помогает увидеть больше.','У каждого дела есть первый черновик.','Найди время для того, что хочется запомнить.'];
 const paths={appearance:'M12 3a9 9 0 1 0 0 18c3 0 3-2 2-3s-1-3 1-3h2a5 5 0 0 0 4-5c0-4-4-7-9-7z M7 11h.1 M10 7h.1 M15 8h.1',account:'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21a8 8 0 0 1 16 0',clock:'M12 8v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',search:'M16 16l5 5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',weather:'M6 18a5 5 0 0 1 0-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8Z',bookmarks:'M6 4h12v17l-6-4-6 4Z',calendar:'M3 6h18v15H3z M3 10h18 M7 3v5m10-5v5',tasks:'M3 6l2 2 3-4m3 3h10 M3 15l2 2 3-4m3 3h10',quote:'M4 11h6v7H3v-6q0-5 6-7 M15 11h6v7h-7v-6q0-5 6-7',music:'M9 17V6l11-3v12 M9 17a3 2 0 1 1-6 0 3 2 0 0 1 6 0 M20 15a3 2 0 1 1-6 0 3 2 0 0 1 6 0',system:'M6 6h12v12H6z M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4',manage:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',sort:'M3 5h17M3 11h12M3 17h6m8-3 3 4 3-4m-3-5v9',settings:'M4 6h16M4 12h16M4 18h16 M9 3v6m7 0v6m-8 0v6'};
@@ -39,7 +40,7 @@ function normalizeWidgetScale(value) {
 }
 
 function normalize(raw={}){raw=raw&&typeof raw==='object'?raw:{};const list=v=>Array.isArray(v)?[...new Set(v.filter(id=>ids.includes(id)))]:[];
- const s={widgetScale:normalizeWidgetScale(raw.widgetScale),bookmarkSource:one(raw.bookmarkSource,['custom','browser'],'custom'),bookmarkFolder:typeof raw.bookmarkFolder==="string"?raw.bookmarkFolder:"",clock:clockOptions(raw.clock),order:[...new Set([...list(raw.order),...ids])],hidden:list(raw.hidden),tiles:{},theme:one(raw.theme,['dark','light'],'dark'),wall:typeof raw.wall==='string'?raw.wall:'',engine:one(raw.engine,Object.keys(engines),'Google'),alignX:one(raw.alignX,['start','center','end'],'center'),alignY:one(raw.alignY,['start','center','end'],'center'),manage:raw.manage===true,musicTint:raw.musicTint!==false,track:url(raw.track),trackName:String(raw.trackName||'').slice(0,120),tasks:[],events:[],quote:raw.quote||{},weather:raw.weather||{}};
+ const s={widgetScale:normalizeWidgetScale(raw.widgetScale),bookmarkSource:isWebApp?'custom':one(raw.bookmarkSource,['custom','browser'],'custom'),bookmarkFolder:typeof raw.bookmarkFolder==="string"?raw.bookmarkFolder:"",clock:clockOptions(raw.clock),order:[...new Set([...list(raw.order),...ids])],hidden:list(raw.hidden),tiles:{},theme:one(raw.theme,['dark','light'],'dark'),wall:typeof raw.wall==='string'?raw.wall:'',engine:one(raw.engine,Object.keys(engines),'Google'),alignX:one(raw.alignX,['start','center','end'],'center'),alignY:one(raw.alignY,['start','center','end'],'center'),manage:!isWebApp&&raw.manage===true,musicTint:raw.musicTint!==false,track:url(raw.track),trackName:String(raw.trackName||'').slice(0,120),tasks:[],events:[],quote:raw.quote||{},weather:raw.weather||{}};
  for(const id of ids){const t=raw.tiles?.[id]||{},d=defaults(id);s.tiles[id]={size:one(t.size,Object.keys(widths),d.size),rows:one(t.rows,[1,2,3],d.rows),text:t.text===true};if(id==='greeting')s.tiles[id].nickname=typeof t.nickname==='string'?t.nickname.trim().slice(0,40):''}
  for(const type of ['tasks','events'])s[type]=(Array.isArray(raw[type])?raw[type]:[]).filter(r=>r&&typeof r.id==='string'&&typeof r.text==='string'&&r.text.trim()&&(type==='tasks'||/^\d{4}-\d\d-\d\d$/.test(r.date))).map(r=>({id:r.id,text:r.text.slice(0,240),...(type==='tasks'?{done:!!r.done}:{date:r.date})}));
  Object.assign(s, normalizeCustomBookmarks(raw));
@@ -113,7 +114,7 @@ function widgetScaleField() {
 function metrics(){return {cw:(board.clientWidth-5*gap)/6,rh:(board.clientHeight-(rows-1)*gap)/rows}}
 function box(p){const {cw,rh}=metrics();return {left:p.x*(cw+gap),top:p.y*(rh+gap),width:p.w*(cw+gap)-gap,height:p.h*(rh+gap)-gap}}
 function place(n,r){for(const [k,v] of Object.entries(r))n.style[k]=v+'px'}
-function layout(){pos=packAll(state);for(const n of board.querySelectorAll('.card'))if(pos[n.dataset.id])place(n,box(pos[n.dataset.id]))}
+function layout(){if(isWebApp)return;pos=packAll(state);for(const n of board.querySelectorAll('.card'))if(pos[n.dataset.id])place(n,box(pos[n.dataset.id]))}
 function cap(id,extra){const n=el('div','cap');n.append(icon(id),el('span','',names[id]));if(extra)n.append(extra);return n}
 function modal(title,key){
   if (widgetScalePreview !== null) {
@@ -165,7 +166,8 @@ function updateClock(display, now = new Date()) {
 }
 function renderClock(container) {
   const n = el("div","clock-left");
-  container.append(n,activityButton());
+  container.append(n);
+  if(!isWebApp)container.append(activityButton());
   const {face,cities,zone} = state.clock;
   const display = el('div',face==='digital'?'time':'clock-dial');
   display.dataset.clockDisplay = '';
@@ -267,8 +269,8 @@ function draw(){cancelGesture();document.body.classList.toggle('light',state.the
  for(const id of state.order){if(state.hidden.includes(id))continue;const card=el('section','card'+(state.tiles[id].text?' text-only':''));card.dataset.id=id;card.setAttribute('aria-label',names[id]);const n=el('div','inside');card.append(n);contents(id,n);if(state.manage){n.inert=true;const tools=el('div','tools');tools.append(btn('Переключить подписи','T',()=>change(s=>s.tiles[id].text=!s.tiles[id].text)),btn('Скрыть виджет','◉',()=>change(s=>s.hidden.push(id))));const grip=btn('Изменить размер','◢',()=>{},'grip');card.append(tools,grip)}board.append(card)}updateWidgetScale();dock()}
 function updateStatus(){const n=$('#sync');if(n)n.textContent=syncStatus}
 let readRevision=0;
-async function refresh(){const revision=++readRevision;const account=await cloudAccount();const next=unpack(await dashboardData(account));if(revision!==readRevision)return;const prev=state;state=next;if(prev.widgetScale!==next.widgetScale&&widgetScalePreview===null)updateWidgetScale();syncStatus=account?'Облачный профиль · локальная копия':'Сохранено в профиле браузера';updateStatus();if(prev.track!==next.track){audio.pause();audio.removeAttribute('src');audio.load();musicError=''}const keys=Object.keys(next).filter(k=>JSON.stringify(next[k])!==JSON.stringify(prev[k]));if(!board.children.length||keys.some(k=>['order','hidden','tiles','theme','wall','alignX','alignY','manage'].includes(k)))draw();else for(const k of keys){const id=({bookmarkSource:'bookmarks',linkCategories:'bookmarks',siteTiles:'bookmarks',bookmarkFolder:'bookmarks',cities:'weather',weatherCity:'weather',events:'calendar',engine:'search',track:'music',trackName:'music',musicTint:'music'})[k]||k;if(ids.includes(id))drawOne(id)}if(dialog.open&&activeDialog==='bookmark-search'&&keys.some(k=>['bookmarkSource','linkCategories','siteTiles'].includes(k)))updateBookmarkResults();if(activeDialog==='settings'&&dialog.open&&keys.some(k=>({appearance:['theme','wall'],search:['engine'],widgets:['hidden','order'],account:[],clock:['clock'],bookmarks:['bookmarkFolder','bookmarkSource','linkCategories','siteTiles']}[settingsPage]||['hidden','theme','wall','engine']).includes(k)))showSettings(settingsPage)}
-function dock(){const d=$('#dock');d.replaceChildren();d.classList.toggle('right',state.alignX==='start');for(const [k,chars,label] of [['alignX',['←','•','→'],'По горизонтали'],['alignY',['↑','•','↓'],'По вертикали']]){const vals=['start','center','end'],i=vals.indexOf(state[k]);const b=btn(label+' · '+['начало','центр','конец'][i],chars.join(''),()=>change(s=>s[k]=vals[(vals.indexOf(s[k])+1)%3]));d.append(b)}
+async function refresh(){const revision=++readRevision;const account=await cloudAccount();const next=unpack(await dashboardData(account));if(revision!==readRevision)return;const prev=state;state=next;if(prev.widgetScale!==next.widgetScale&&widgetScalePreview===null)updateWidgetScale();syncStatus=account?'Облачный профиль · локальная копия':isWebApp?'Сохранено на этом устройстве':'Сохранено в профиле браузера';updateStatus();if(prev.track!==next.track){audio.pause();audio.removeAttribute('src');audio.load();musicError=''}const keys=Object.keys(next).filter(k=>JSON.stringify(next[k])!==JSON.stringify(prev[k]));if(!board.children.length||keys.some(k=>['order','hidden','tiles','theme','wall','alignX','alignY','manage'].includes(k)))draw();else for(const k of keys){const id=({bookmarkSource:'bookmarks',linkCategories:'bookmarks',siteTiles:'bookmarks',bookmarkFolder:'bookmarks',cities:'weather',weatherCity:'weather',events:'calendar',engine:'search',track:'music',trackName:'music',musicTint:'music'})[k]||k;if(ids.includes(id))drawOne(id)}if(dialog.open&&activeDialog==='bookmark-search'&&keys.some(k=>['bookmarkSource','linkCategories','siteTiles'].includes(k)))updateBookmarkResults();if(activeDialog==='settings'&&dialog.open&&keys.some(k=>({appearance:['theme','wall'],search:['engine'],widgets:['hidden','order'],account:[],clock:['clock'],bookmarks:['bookmarkFolder','bookmarkSource','linkCategories','siteTiles']}[settingsPage]||['hidden','theme','wall','engine']).includes(k)))showSettings(settingsPage)}
+function dock(){const d=$('#dock');d.replaceChildren();if(isWebApp){const settingsButton=btn('Настройки','',settings);settingsButton.append(icon('settings'));d.append(settingsButton);return}d.classList.toggle('right',state.alignX==='start');for(const [k,chars,label] of [['alignX',['←','•','→'],'По горизонтали'],['alignY',['↑','•','↓'],'По вертикали']]){const vals=['start','center','end'],i=vals.indexOf(state[k]);const b=btn(label+' · '+['начало','центр','конец'][i],chars.join(''),()=>change(s=>s[k]=vals[(vals.indexOf(s[k])+1)%3]));d.append(b)}
  for(const [key,label,fn] of [['manage','Режим управления',()=>change(s=>s.manage=!s.manage)],['sort','Автосортировка',()=>change(s=>{const order=[...s.order].sort((a,b)=>widths[s.tiles[b].size]*s.tiles[b].rows-widths[s.tiles[a].size]*s.tiles[a].rows||ids.indexOf(a)-ids.indexOf(b));if(packAll({...s,order}))s.order=order;else throw Error('Сортировка с текущими размерами не помещается')})],['settings','Настройки',settings]]){const b=btn(label,'',fn);b.append(icon(key));if(key==='manage'){b.classList.toggle('active',state.manage);b.setAttribute('aria-pressed',state.manage)}d.append(b)}}
 function selectField(label,options,value,fn){const q=el('select');for(const [k,t] of options){const o=el('option','',t);o.value=k;q.append(o)}q.value=value;q.onchange=()=>fn(q.value);field(label,q)}
 const settingsTitles={appearance:'Оформление',search:'Поиск',widgets:'Виджеты',account:'Аккаунт'};
@@ -294,6 +296,7 @@ function showSettings(page){
       search:state.engine,widgets:'Включено '+(ids.length-state.hidden.length)+' из '+ids.length,account:'Профиль браузера'
     };
     for(const [key,title] of Object.entries(settingsTitles)){
+      if(isWebApp&&key==='account')continue;
       const row=btn(title,'',()=>showSettings(key),'settings-row');
       row.removeAttribute('aria-label');row.dataset.page=key;
       const symbol=el('span','settings-symbol');
@@ -304,9 +307,9 @@ function showSettings(page){
       const arrow=el('span','settings-chevron','›');arrow.setAttribute('aria-hidden','true');
       row.append(symbol,copy,arrow);fields.append(row);
     }
-    renderCloud();
+    if(!isWebApp)renderCloud();
   }else if(page==='appearance'){
-    widgetScaleField();
+    if(!isWebApp)widgetScaleField();
     selectField('Тема',[['dark','Тёмная'],['light','Светлая']],state.theme,v=>change(s=>s.theme=v));
     selectField('Обои',[...Object.entries(wallpaperNames),['custom','Свои обои']],url(state.wall)?'custom':state.wall,v=>{
       if(v==='custom'){custom.hidden=false;address.focus()}else{custom.hidden=true;change(s=>s.wall=v)}
@@ -393,8 +396,8 @@ audio.onplay=audio.onpause=audio.onended=()=>drawOne('music');audio.onerror=()=>
 async function systemInfo(){try{const info=await chrome.system.cpu.getInfo();cpu=info.numOfProcessors+' поток.';const platform=await chrome.runtime.getPlatformInfo();if(platform.os==='cros'){const m=await chrome.system.memory.getInfo();memory=((m.capacity-m.availableCapacity)/2**30).toFixed(1)+' / '+(m.capacity/2**30).toFixed(1)+' ГБ'}}catch{cpu='Недоступно'}drawOne('system')}
 function stale(q){return !Number.isInteger(q.index)||!quotes[q.index]||!Number.isFinite(q.at)||Date.now()-q.at>=86400000||q.at>Date.now()}
 function rotateQuote(){if(stale(state.quote))change(s=>{if(stale(s.quote))s.quote={index:(Number.isInteger(s.quote.index)?s.quote.index+1:Math.floor(Math.random()*quotes.length))%quotes.length,at:Date.now()}})}
-async function init(){draw();if(!globalThis.chrome?.storage?.sync){syncStatus='Откройте страницу как расширение Chrome';return}initCloud();chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes[cloudKey]){refresh();renderCloud()}if(area==='sync'&&Object.keys(changes).some(k=>k.startsWith('gntd.')))refresh().catch(()=>toast('Ошибка чтения настроек'))});
+async function init(){draw();if(!isWebApp&&!globalThis.chrome?.storage?.sync){syncStatus='Откройте страницу как расширение Chrome';return}if(!isWebApp){initCloud();chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes[cloudKey]){refresh();renderCloud()}if(area==='sync'&&Object.keys(changes).some(k=>k.startsWith('gntd.')))refresh().catch(()=>toast('Ошибка чтения настроек'))});}
  try{await refresh();rotateQuote()}catch{syncStatus='Ошибка чтения настроек';toast(syncStatus)}
- bookmarks();for(const event of ['onCreated','onRemoved','onChanged','onMoved','onImportEnded','onChildrenReordered'])chrome.bookmarks[event].addListener(bookmarks);systemInfo();let lastDay=day(new Date()),hour=new Date().getHours();
+ if(!isWebApp){bookmarks();for(const event of ['onCreated','onRemoved','onChanged','onMoved','onImportEnded','onChildrenReordered'])chrome.bookmarks[event].addListener(bookmarks);systemInfo()}let lastDay=day(new Date()),hour=new Date().getHours();
  setInterval(()=>{const now=new Date(),t=board.querySelector('[data-clock-display]');if(t)updateClock(t,now);if(hour!==now.getHours()){hour=now.getHours();drawOne('greeting')}if(lastDay!==day(now)){lastDay=day(now);drawOne('calendar')}rotateQuote()},15000);setInterval(()=>{if(!document.hidden&&memory)systemInfo()},60000)}
 init();

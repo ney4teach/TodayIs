@@ -40,7 +40,7 @@ async function bookmarks() {
 }
 
 function bookmarkFields() {
-  selectField('Содержимое панели', [['custom', 'Мои темы'], ['browser', 'Закладки браузера']],
+  if (!isWebApp) selectField('Содержимое панели', [['custom', 'Мои темы'], ['browser', 'Закладки браузера']],
     state.bookmarkSource, value => change(s => { s.bookmarkSource = value; }));
   if (state.bookmarkSource === 'custom') {
     fields.append(btn('Добавить тему', 'Добавить тему', () => editCustomBookmark()));

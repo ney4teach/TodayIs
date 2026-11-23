@@ -1,0 +1,15 @@
+{
+  "id": "./mobile.html",
+  "name": "Today Is",
+  "short_name": "Today Is",
+  "lang": "ru",
+  "start_url": "./mobile.html",
+  "scope": "./",
+  "display": "standalone",
+  "theme_color": "#141419",
+  "background_color": "#141419",
+  "icons": [
+    {"src":"icons/mobile-192.png","sizes":"192x192","type":"image/png"},
+    {"src":"icons/mobile-512.png","sizes":"512x512","type":"image/png"}
+  ]
+}
