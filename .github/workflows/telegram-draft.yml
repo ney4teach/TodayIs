@@ -95,6 +95,13 @@ jobs:
             const page = await context.newPage();
             page.setDefaultTimeout(15000);
             await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
+            await page.locator('#dock button').last().click();
+            await page.locator('[data-page="widgets"]').click();
+            await page.locator('[data-page="clock"]').click();
+            const ringStyle = page.locator('#fields select').filter({has: page.locator('option[value="glow"]')});
+            await ringStyle.selectOption('glow');
+            await page.locator('#dialog #close').click();
+            await page.locator('.activity-button .activity-ring[data-style="glow"]').waitFor();
             await page.locator('.activity-button').click();
             const dialog = page.locator('#dialog');
             const total = dialog.locator('.activity-summary strong');

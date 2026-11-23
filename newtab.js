@@ -27,6 +27,7 @@ const clockCities = {
   'Europe/Paris':'Париж', 'Asia/Dubai':'Дубай', 'Asia/Tokyo':'Токио', 'America/New_York':'Нью-Йорк'
 };
 const clockActivityCenters = [['mascot','Маскот'],['logo','Логотип'],['none','Пустой центр']];
+const clockActivityStyles = [['classic','Классическое'],['glow','Свечение'],['dashed','Штрихи']];
 const clockActivityImages = {mascot:'icons/clock-mascot.webp',logo:'icons/clock-logo.webp'};
 function clockOptions(raw = {}) {
   const cities = ['local', ...Object.keys(clockCities).filter(zone => zone !== 'local' && Array.isArray(raw?.cities) && raw.cities.includes(zone))];
@@ -34,7 +35,8 @@ function clockOptions(raw = {}) {
     face:one(raw?.face,['digital','analog'],'digital'),
     cities,
     zone:one(raw?.zone,cities,'local'),
-    activityCenter:one(raw?.activityCenter,clockActivityCenters.map(([value])=>value),'mascot')
+    activityCenter:one(raw?.activityCenter,clockActivityCenters.map(([value])=>value),'mascot'),
+    activityStyle:one(raw?.activityStyle,clockActivityStyles.map(([value])=>value),'classic')
   };
 }
 const widgetScaleRange = {min:60, max:100, step:5};
@@ -214,6 +216,7 @@ function activityBreakdown(rows) {
 function activityRing(groups,total) {
   const ring=el('span','activity-ring');
   ring.setAttribute('aria-hidden','true');
+  ring.dataset.style=state.clock.activityStyle;
   const visible=groups.filter(group=>group.time>0);
   if (visible.length) {
     let angle=0;
@@ -345,6 +348,7 @@ setInterval(()=>{if (!document.hidden && board.querySelector('.activity-button')
 function clockFields() {
   selectField('Циферблат',[['digital','Цифровой'],['analog','Стрелочный']],state.clock.face,v=>change(s=>s.clock.face=v));
   selectField('Центр кольца активности',clockActivityCenters,state.clock.activityCenter,value=>change(s=>s.clock.activityCenter=value));
+  selectField('Стиль кольца активности',clockActivityStyles,state.clock.activityStyle,value=>change(s=>s.clock.activityStyle=value));
   const group = el('fieldset','clock-zones');
   group.append(el('legend','','Города для переключения'));
   for (const [zone,name] of Object.entries(clockCities)) {

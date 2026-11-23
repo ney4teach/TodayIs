@@ -145,6 +145,24 @@ body.light :is(.activity-button,dialog[data-view=activity]) {
   background:var(--activity-fill,linear-gradient(transparent,transparent)),var(--line);
   mask:radial-gradient(closest-side,transparent 75%,black 78%);
 }
+.activity-ring[data-style=glow]::after {
+  content:"";position:absolute;inset:-7%;border-radius:inherit;pointer-events:none;
+  background:var(--activity-fill,transparent);
+  mask:radial-gradient(closest-side,transparent 74%,black 83%,transparent 100%);
+  filter:blur(3px);opacity:.68;
+}
+body.light .activity-ring[data-style=glow]::after {opacity:.5}
+.activity-ring[data-style=dashed]::before {
+  mask:radial-gradient(closest-side,transparent 72%,black 75%),
+       repeating-conic-gradient(from 24deg,black 0deg 9deg,transparent 9deg 15deg);
+  mask-composite:intersect;
+}
+.activity-ring[data-style=dashed]::after {
+  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
+  background:var(--activity-fill,transparent);
+  mask:radial-gradient(closest-side,transparent 70%,black 72% 74%,transparent 76%);
+  opacity:.58;
+}
 .activity-center-image {display:block;width:66%;height:66%;object-fit:contain;pointer-events:none}
 .activity-center-image[data-center=logo] {width:55%;height:55%;border-radius:25%}
 .activity-copy {display:grid;gap:2px;text-align:center;line-height:1.12}
