@@ -183,8 +183,55 @@ function renderClock(container) {
     n.append(next);
   }
 }
-const activityColors = ['#8585ff','#36c7aa','#f3a95d','#cf83e9','#61aae8','#9695a3'];
-let activityRows = [], activityReady = false, activityRequest = 0;
+// Match complete domain labels, including subdomains. Unknown sites keep their time.
+const activityCategories = [
+  {name:'Медиа и игры',tone:'media',domains:'youtube.com youtu.be twitch.tv rutube.ru kinopoisk.ru okko.tv ivi.ru netflix.com spotify.com music.yandex.ru music.yandex.com store.steampowered.com steamcommunity.com'},
+  {name:'Работа и учёба',tone:'work',domains:'github.com gitlab.com stackoverflow.com developer.mozilla.org notion.so notion.site figma.com docs.google.com drive.google.com calendar.google.com disk.yandex.ru tracker.yandex.ru wikipedia.org stepik.org coursera.org chatgpt.com'},
+  {name:'Общение',tone:'social',domains:'vk.com vk.ru ok.ru telegram.org t.me whatsapp.com discord.com reddit.com x.com mail.google.com mail.yandex.ru e.mail.ru teams.microsoft.com slack.com'},
+  {name:'Другое',tone:'other',domains:''}
+].map(group=>({...group,domains:group.domains.split(' ').filter(Boolean)}));
+
+function activityBreakdown(rows) {
+  const groups=activityCategories.map(category=>({...category,sites:[],time:0}));
+  let total=0;
+  for (const [site,time] of rows) {
+    const host=site.toLowerCase().replace(/\.$/,'');
+    const group=groups.find(g=>g.domains.some(d=>host===d || host.endsWith('.'+d))) || groups.at(-1);
+    group.sites.push([site,time]);
+    group.time+=time;
+    total+=time;
+  }
+  return {groups,total};
+}
+
+function activityRing(groups,total) {
+  const ring=el('span','activity-ring');
+  ring.setAttribute('aria-hidden','true');
+  const visible=groups.filter(group=>group.time>0);
+  if (visible.length) {
+    let angle=0;
+    const stops=visible.flatMap((group,index)=>{
+      const sweep=360*group.time/total;
+      const end=index===visible.length-1?360:angle+sweep;
+      const gap=visible.length>1?Math.min(1.75,(end-angle)/4):0;
+      const segment=[`transparent ${angle}deg ${angle+gap}deg`,`var(--activity-${group.tone}) ${angle+gap}deg ${end-gap}deg`,`transparent ${end-gap}deg ${end}deg`];
+      angle=end;
+      return segment;
+    });
+    ring.style.setProperty('--activity-fill',`conic-gradient(from 24deg,${stops.join(',')})`);
+  }
+  const mark=el('span','activity-mark');
+  mark.append(el('i'),el('i'),el('i'));
+  ring.append(mark);
+  return ring;
+}
+
+const activityPeriods = [
+  [1,'24 часа','За последние 24 часа'],
+  [7,'7 дней','За последние 7 дней'],
+  [30,'Месяц','За последние 30 дней']
+];
+let activityData, activityPeriod = 1, activityRequest = 0;
 function duration(ms) {
   const minutes = Math.floor(ms/60000);
   if (!minutes) return ms ? Math.max(1,Math.floor(ms/1000))+' с' : '0 мин';
@@ -192,43 +239,88 @@ function duration(ms) {
   return Math.floor(minutes/60)+' ч'+(minutes%60?' '+minutes%60+' мин':'');
 }
 function paintActivity(button) {
-  const total = activityRows.reduce((sum,row)=>sum+row[1],0);
-  let angle = 0;
-  const stops = activityRows.slice(0,6).map((row,index)=>{
-    const start = angle;
-    angle = index===5 ? total/240000 : angle+row[1]/240000;
-    return activityColors[index]+' '+start+'deg '+angle+'deg';
-  });
-  stops.push('var(--line) '+angle+'deg 360deg');
-  button.style.setProperty('--activity-fill','conic-gradient('+stops.join(',')+')');
-  button.querySelector('strong').textContent = activityReady ? duration(total) : '—';
-  button.setAttribute('aria-label','Активность на сайтах за 24 часа. '+(activityReady?duration(total):'Нет данных')+'. Открыть по сайтам');
+  const rows=activityData?.summaries[1];
+  const {groups,total}=activityBreakdown(rows || []);
+  const value=rows?duration(total):'—';
+  const copy=el('span','activity-copy');
+  copy.append(el('strong','',value),el('small','','На сайтах · 24 ч'));
+  button.replaceChildren(activityRing(groups,total),copy);
+  button.title='Время на сайтах за последние 24 часа · '+value;
+  button.setAttribute('aria-label',button.title+'. Открыть категории и сайты');
 }
 function activityDetails() {
-  modal('Активность за 24 часа','activity');
-  if (!activityRows.length) {
-    fields.append(el('p','muted',activityReady?'Пока нет времени на сайтах. Здесь появятся сайты, которые ты открываешь после включения учёта.':'Не удалось получить статистику. Перезагрузи расширение на странице расширений и открой новую вкладку.'));
+  modal('Активность на сайтах','activity');
+  const periods=el('div','activity-periods');
+  periods.setAttribute('role','group');
+  periods.setAttribute('aria-label','Период статистики');
+  for (const [days,label] of activityPeriods) {
+    const control=btn(label,label,()=>{
+      activityPeriod=days;
+      paintActivityReport();
+    });
+    control.dataset.days=days;
+    control.setAttribute('aria-controls','activity-report');
+    periods.append(control);
   }
-  activityRows.forEach(([host,time],index)=>{
-    const row=el('div','activity-row'), dot=el('i');
-    dot.style.background=activityColors[Math.min(index,5)];
-    row.append(dot,el('span','',host),el('strong','',duration(time)));fields.append(row);
-  });
+  const report=el('div','activity-report');
+  report.id='activity-report';
+  fields.append(periods,report);
+  paintActivityReport();
+}
+function paintActivityReport() {
+  const report=fields.querySelector('.activity-report');
+  const expanded=new Set(Array.from(report.querySelectorAll('.activity-group[open]'),node=>node.dataset.name));
+  const focused=document.activeElement?.matches('.activity-heading')?document.activeElement.parentElement.dataset.name:null;
+  const rows=activityData?.summaries[activityPeriod];
+  const {groups,total}=activityBreakdown(rows || []);
+  for (const control of fields.querySelectorAll('.activity-periods button')) {
+    control.setAttribute('aria-pressed',String(Number(control.dataset.days)===activityPeriod));
+  }
+  const [, , label]=activityPeriods.find(([days])=>days===activityPeriod);
+  const hero=el('div','activity-summary'), copy=el('div');
+  copy.setAttribute('aria-live','polite');
+  copy.append(el('small','',label),el('strong','',rows?duration(total):'—'));
+  hero.append(activityRing(groups,total),copy);
+  report.replaceChildren(hero);
+  if (rows && activityPeriod>1 && activityData.now-activityData.since<activityPeriod*86400000) {
+    const since=new Date(activityData.since).toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
+    report.append(el('small','activity-note','История пока доступна с '+since));
+  }
+  if (!total) {
+    const message=rows?'За этот период активности пока нет.':activityData===undefined?'Загружаем статистику…':'Статистика сейчас недоступна.';
+    report.append(el('p','activity-note muted',message));
+    return;
+  }
+  for (const group of groups.filter(group=>group.time).sort((a,b)=>b.time-a.time)) {
+    const section=el('details','activity-group');
+    section.dataset.name=group.name;
+    section.style.setProperty('--arc',`var(--activity-${group.tone})`);
+    const head=el('summary','activity-heading');
+    const share=100*group.time/total;
+    head.append(el('span','activity-key',group.name),el('strong','',duration(group.time)),el('small','',share<1?'<1%':Math.round(share)+'%'));
+    section.append(head);
+    section.open=expanded.has(group.name);
+    for (const [host,time] of group.sites) {
+      const row=el('div','activity-site');
+      row.append(el('span','',host),el('span','',duration(time)));section.append(row);
+    }
+    report.append(section);
+    if (focused===group.name) head.focus({preventScroll:true});
+  }
 }
 async function refreshActivity() {
   const revision=++activityRequest;
-  let rows;
-  try { rows=await globalThis.chrome?.runtime?.sendMessage({type:'activity-summary'}) } catch {}
+  let data;
+  try { data=await globalThis.chrome?.runtime?.sendMessage({type:'activity-summary',periods:true}) } catch {}
   if (revision!==activityRequest) return;
-  activityReady=Array.isArray(rows);activityRows=activityReady?rows:[];
+  activityData=activityPeriods.every(([days])=>Array.isArray(data?.summaries?.[days]))?data:null;
   const button=board.querySelector('.activity-button');
   if (button) paintActivity(button);
-  if (dialog.open && activeDialog==='activity') activityDetails();
+  if (dialog.open && activeDialog==='activity') paintActivityReport();
 }
 function activityButton() {
   const button=btn('Активность за 24 часа','',activityDetails,'activity-button');
-  const ring=el('span','activity-ring');
-  ring.append(el('strong'),el('small','','за 24 ч'));button.append(ring);
+  button.setAttribute('aria-haspopup','dialog');
   paintActivity(button);refreshActivity();
   return button;
 }
