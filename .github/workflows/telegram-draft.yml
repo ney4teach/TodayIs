@@ -22,6 +22,7 @@ on:
           - auto
           - new-tab
           - search
+          - calendar
           - wallpaper-accent
       summary:
         description: Короткое описание для подписчиков, если нужно заменить текст из GitHub
@@ -67,10 +68,11 @@ jobs:
           const { appendFileSync } = await import('node:fs');
           const branch = data.head?.ref || '';
           const inferred = /(?:^|\/)search(?:[-/]|$)/i.test(branch) ? 'search'
+            : /(?:^|\/)calendar(?:[-/]|$)/i.test(branch) ? 'calendar'
             : /(?:^|\/)wallpaper[-/]accent(?:[-/]|$)/i.test(branch) ? 'wallpaper-accent'
             : 'new-tab';
           const requested = process.env.SCREENSHOT;
-          const scenario = ['new-tab', 'search', 'wallpaper-accent'].includes(requested) ? requested : inferred;
+          const scenario = ['new-tab', 'search', 'calendar', 'wallpaper-accent'].includes(requested) ? requested : inferred;
           appendFileSync(process.env.GITHUB_OUTPUT, 'ref=' + ref + '\nscenario=' + scenario + '\n');
           NODE
       - uses: actions/checkout@v4
@@ -106,8 +108,9 @@ jobs:
               await context.waitForEvent('serviceworker', { timeout: 15000 });
             const page = await context.newPage();
             page.setDefaultTimeout(15000);
-            await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
             const scenario = process.env.SCREENSHOT_SCENARIO;
+            if (scenario === 'calendar') await page.clock.setFixedTime(new Date(2026, 10, 2, 12));
+            await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
             await page.locator('#board [data-id]').first().waitFor({ state: 'visible' });
 
             if (scenario === 'search') {
@@ -123,6 +126,35 @@ jobs:
                 style: [
                   '#board [data-id]:not([data-id="search"]) { filter: blur(3px) brightness(.78); }',
                   '#board [data-id="search"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
+                ].join('\n'),
+              });
+            } else if (scenario === 'calendar') {
+              const dialog = page.locator('#dialog');
+              const calendar = page.locator('#board [data-id="calendar"]');
+              const openCalendar = calendar.getByRole('button', { name: 'Открыть календарь', exact: true });
+              await openCalendar.click();
+              await dialog.getByRole('button', { name: 'Создать график', exact: true }).click();
+              await dialog.locator('.calendar-preview-day.calendar-type-day').first().waitFor();
+              await dialog.locator('.calendar-preview-day.calendar-type-off').first().waitFor();
+              const modalStyle = '#panel, #dock { filter: blur(6px) brightness(.6); }';
+              const editorStyle = modalStyle +
+                ' #dialog[data-view="calendar-editor"] { width: min(960px, 94vw); }' +
+                ' #dialog .calendar-cycle { grid-template-columns: repeat(2, minmax(0, 1fr)); }';
+              await page.screenshot({ path: 'todayis-preview-02.png', animations: 'disabled', style: editorStyle });
+
+              await dialog.getByRole('button', { name: 'Сохранить график', exact: true }).click();
+              await dialog.locator('.calendar-day.calendar-type-day').first().waitFor();
+              await dialog.locator('.calendar-day.calendar-type-off').first().waitFor();
+              await page.screenshot({ path: 'todayis-preview-03.png', animations: 'disabled', style: modalStyle });
+
+              await dialog.locator('#close').click();
+              await calendar.locator('.calendar-day.calendar-type-day').first().waitFor();
+              await page.screenshot({
+                path: 'todayis-preview-01.png',
+                animations: 'disabled',
+                style: [
+                  '#board > [data-id]:not([data-id="calendar"]), #dock { filter: blur(6px) brightness(.6); }',
+                  '#board > [data-id="calendar"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
                 ].join('\n'),
               });
             } else {
@@ -162,18 +194,20 @@ jobs:
             sudo apt-get install -y imagemagick
           fi
           base64 --decode branding/.github/branding/todayis-watermark.png.base64 > logo.png
-          read -r width height < <(identify -ping -format '%w %h\n' 'todayis-preview.png[0]')
-          short_side=$(( width < height ? width : height ))
-          logo_width=$(( short_side * 14 / 100 + 1 ))
-          inset=$(( short_side * 3 / 100 ))
-          convert logo.png -channel A -level '25%,90%' +channel -trim +repage -resize "${logo_width}x" logo-sized.png
-          convert 'todayis-preview.png[0]' logo-sized.png -gravity southeast \
-            -geometry "+${inset}+${inset}" -composite PNG:todayis-branded.png
-          mv todayis-branded.png todayis-preview.png
+          for frame in todayis-preview*.png; do
+            read -r width height < <(identify -ping -format '%w %h\n' "$frame[0]")
+            short_side=$(( width < height ? width : height ))
+            logo_width=$(( short_side * 14 / 100 + 1 ))
+            inset=$(( short_side * 3 / 100 ))
+            convert logo.png -channel A -level '25%,90%' +channel -trim +repage -resize "${logo_width}x" logo-sized.png
+            convert "$frame[0]" logo-sized.png -gravity southeast \
+              -geometry "+${inset}+${inset}" -composite PNG:todayis-branded.png
+            mv todayis-branded.png "$frame"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: todayis-screenshot
-          path: todayis-preview.png
+          path: todayis-preview*.png
           if-no-files-found: error
           retention-days: 3
 
@@ -195,7 +229,7 @@ jobs:
           POST_DESTINATION: ${{ inputs.destination }}
         run: |
           node --input-type=module <<'NODE'
-          import { readFile } from 'node:fs/promises';
+          import { readFile, readdir } from 'node:fs/promises';
 
           const { SOURCE_URL, POST_SUMMARY, GH_TOKEN, BOT_TOKEN, PREVIEW_CHAT_ID, POST_DESTINATION } = process.env;
           const requestOptions = { signal: AbortSignal.timeout(20000), redirect: 'error' };
@@ -251,7 +285,8 @@ jobs:
             const title = (sourceData.title || sourceData.name || sourceData.tag_name).trim();
             const body = (sourceData.body || '').replace(/<!--[\s\S]*?-->/g, '');
             const images = /!\[[^\]\n]*\]\((https:\/\/[^)\s]+)[^)\n]*\)|<img\b[^>]*\bsrc=["'](https:\/\/[^"'\s]+)["'][^>]*>/gi;
-            const generated = await readFile('todayis-preview.png');
+            const frames = (await readdir('.')).filter((file) => /^todayis-preview(?:-\d{2})?\.png$/.test(file)).sort();
+            if (frames.length < 1 || frames.length > 10) throw new Error('Нужно от одного до десяти кадров.');
 
             const cleanBody = body.replace(images, '');
             const notes = /^#{1,6}\s+(?:для подписчиков|что изменилось|изменения|что нового|summary|changes)\s*\r?$\n([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/im.exec(cleanBody)?.[1];
@@ -284,13 +319,27 @@ jobs:
             const text = '<b>' + escape(heading) + '</b>' + (summary ? '\n\n' + formattedSummary : '');
             const form = new FormData();
             form.set('chat_id', chatId);
-            form.set('parse_mode', 'HTML');
-            form.set('caption', text);
-            form.set('photo', new Blob([generated], { type: 'image/png' }), 'todayis-preview.png');
+            const album = frames.length > 1;
+            if (album) {
+              const media = [];
+              for (const [index, frame] of frames.entries()) {
+                const key = 'frame' + index;
+                form.set(key, new Blob([await readFile(frame)], { type: 'image/png' }), frame);
+                const photo = { type: 'photo', media: 'attach://' + key };
+                if (index === 0) Object.assign(photo, { caption: text, parse_mode: 'HTML' });
+                media.push(photo);
+              }
+              form.set('media', JSON.stringify(media));
+            } else {
+              form.set('parse_mode', 'HTML');
+              form.set('caption', text);
+              form.set('photo', new Blob([await readFile(frames[0])], { type: 'image/png' }), frames[0]);
+            }
+            const method = album ? 'sendMediaGroup' : 'sendPhoto';
 
             let telegram;
             try {
-              telegram = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/sendPhoto', {
+              telegram = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/' + method, {
                 ...requestOptions,
                 method: 'POST',
                 body: form,
@@ -304,7 +353,7 @@ jobs:
               throw new Error('Telegram не принял пост. HTTP ' + telegram.status + '.' + hint);
             }
             console.log(publish
-              ? 'Опубликовано: https://t.me/' + channel.slice(1) + '/' + sent.result.message_id
+              ? 'Опубликовано: https://t.me/' + channel.slice(1) + '/' + (album ? sent.result[0] : sent.result).message_id
               : 'Черновик отправлен в личный чат.');
           }
 
