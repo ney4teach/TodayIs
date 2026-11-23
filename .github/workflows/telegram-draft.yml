@@ -7,6 +7,13 @@ on:
         description: Ссылка на PR или релиз Today Is
         required: true
         type: string
+      screenshot:
+        description: Сценарий автоматического скриншота
+        type: choice
+        default: none
+        options:
+          - none
+          - wallpaper-accent
       summary:
         description: Короткое описание для подписчиков, если нужно заменить текст из GitHub
         type: string
@@ -19,10 +26,95 @@ permissions:
   pull-requests: read
 
 jobs:
+  screenshot:
+    if: inputs.screenshot == 'wallpaper-accent' && inputs.image_url == ''
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Определить версию расширения
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_URL: ${{ inputs.source }}
+        run: |
+          node --input-type=module <<'NODE'
+          const source = /^https:\/\/github\.com\/ney4teach\/TodayIs\/(?:pull\/([1-9]\d*)|releases\/tag\/([^?#\s]+?))\/?$/i
+            .exec(process.env.SOURCE_URL.trim());
+          if (!source) throw new Error('Укажите ссылку на PR или релиз Today Is.');
+          const tag = source[2] && decodeURIComponent(source[2]);
+          const endpoint = source[1] ? 'pulls/' + source[1] : 'releases/tags/' + encodeURIComponent(tag);
+          const response = await fetch('https://api.github.com/repos/ney4teach/TodayIs/' + endpoint, {
+            signal: AbortSignal.timeout(20000),
+            headers: { Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json' },
+          });
+          if (!response.ok) throw new Error('GitHub не вернул источник. HTTP ' + response.status);
+          const data = await response.json();
+          if (source[1] && (data.head?.repo?.full_name !== 'ney4teach/TodayIs' || !/^[a-f0-9]{40}$/.test(data.head.sha))) {
+            throw new Error('Для скриншота выберите PR из ветки репозитория Today Is.');
+          }
+          const ref = source[1] ? data.head.sha : 'refs/tags/' + data.tag_name;
+          if (!ref || /\s/.test(ref)) throw new Error('Не удалось определить версию расширения.');
+          const { appendFileSync } = await import('node:fs');
+          appendFileSync(process.env.GITHUB_OUTPUT, 'ref=' + ref + '\n');
+          NODE
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.source.outputs.ref }}
+          persist-credentials: false
+          path: extension
+      - name: Установить Chromium
+        run: |
+          npm install --no-save --no-package-lock playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Снять обои и палитру
+        run: |
+          node --input-type=module <<'NODE'
+          import { resolve } from 'node:path';
+          import { chromium } from 'playwright';
+
+          const extension = resolve('extension');
+          const context = await chromium.launchPersistentContext('', {
+            channel: 'chromium',
+            headless: true,
+            viewport: { width: 1440, height: 960 },
+            locale: 'ru-RU',
+            args: ['--disable-extensions-except=' + extension, '--load-extension=' + extension],
+          });
+          try {
+            const worker = context.serviceWorkers()[0] ??
+              await context.waitForEvent('serviceworker', { timeout: 15000 });
+            const page = await context.newPage();
+            page.setDefaultTimeout(15000);
+            await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
+            await page.locator('#dock button').last().click();
+            await page.locator('[data-page="appearance"]').click();
+            await page.locator('.wallpaper-file').setInputFiles(resolve(extension, 'wallpapers/aurora.svg'));
+            await page.waitForFunction(() => document.body.style.backgroundImage.includes('data:image/'));
+            await page.locator('#accent-mode').selectOption('manual');
+            await page.locator('.accent-swatch').last().click();
+            await page.locator('.accent-swatch').last().locator('input:checked').waitFor({ state: 'attached' });
+            await page.screenshot({ path: 'todayis-preview.png', animations: 'disabled' });
+          } finally {
+            await context.close();
+          }
+          NODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: todayis-screenshot
+          path: todayis-preview.png
+          if-no-files-found: error
+          retention-days: 3
+
   preview:
+    needs: screenshot
+    if: ${{ !cancelled() && (needs.screenshot.result == 'success' || needs.screenshot.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
+      - uses: actions/download-artifact@v4
+        if: needs.screenshot.result == 'success'
+        with:
+          name: todayis-screenshot
       - name: Отправить черновик в личку
         env:
           SOURCE_URL: ${{ inputs.source }}
@@ -33,6 +125,8 @@ jobs:
           CHAT_ID: ${{ secrets.TELEGRAM_PREVIEW_CHAT_ID }}
         run: |
           node --input-type=module <<'NODE'
+          import { readFile } from 'node:fs/promises';
+
           const { SOURCE_URL, POST_SUMMARY, IMAGE_URL, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
           const requestOptions = { signal: AbortSignal.timeout(20000), redirect: 'error' };
 
@@ -60,7 +154,11 @@ jobs:
               .map((match) => match[1] || match[2])
               .find((url) => /^https:\/\/(?:github\.com\/user-attachments\/assets\/|user-images\.githubusercontent\.com\/)/i.test(url) ||
                 /\.(?:png|jpe?g|webp)(?:[?#].*)?$/i.test(url));
-            const image = IMAGE_URL.trim() || screenshot;
+            const generated = await readFile('todayis-preview.png').catch((error) => {
+              if (error.code !== 'ENOENT') throw error;
+              return null;
+            });
+            const image = IMAGE_URL.trim() || (!generated && screenshot);
             if (image && !/^https:\/\/[^\s]+$/i.test(image)) {
               throw new Error('Для скриншота нужна прямая HTTPS-ссылка.');
             }
@@ -75,7 +173,7 @@ jobs:
               .replace(/\*\*|__|\x60/g, '').trim();
 
             const heading = '✨ ' + title;
-            if ([heading, summary].join('\n\n').length > (image ? 1024 : 4096)) {
+            if ([heading, summary].join('\n\n').length > ((image || generated) ? 1024 : 4096)) {
               throw new Error('Черновик слишком длинный. Сократите его через поле summary.');
             }
             const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -85,14 +183,22 @@ jobs:
               ? { ...common, photo: image, caption: text }
               : { ...common, text, link_preview_options: { is_disabled: true } };
 
+            const form = generated && new FormData();
+            if (form) {
+              form.set('chat_id', CHAT_ID);
+              form.set('parse_mode', 'HTML');
+              form.set('caption', text);
+              form.set('photo', new Blob([generated], { type: 'image/png' }), 'todayis-preview.png');
+            }
+
             let telegram;
             try {
               telegram = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/' +
-                (image ? 'sendPhoto' : 'sendMessage'), {
+                ((image || generated) ? 'sendPhoto' : 'sendMessage'), {
                 ...requestOptions,
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                headers: form ? undefined : { 'Content-Type': 'application/json' },
+                body: form || JSON.stringify(payload),
               });
             } catch {
               throw new Error('Telegram не ответил. Проверьте личку перед повторным запуском.');
