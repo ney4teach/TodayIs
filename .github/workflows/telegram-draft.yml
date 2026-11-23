@@ -1,0 +1,95 @@
+name: Подготовить пост
+
+on:
+  workflow_dispatch:
+    inputs:
+      source:
+        description: Ссылка на PR или релиз Today Is
+        required: true
+        type: string
+      summary:
+        description: Короткое описание для подписчиков, если нужно заменить текст из GitHub
+        type: string
+      image_url:
+        description: Прямая HTTPS-ссылка на скриншот (необязательно)
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Отправить черновик в личку
+        env:
+          SOURCE_URL: ${{ inputs.source }}
+          POST_SUMMARY: ${{ inputs.summary }}
+          IMAGE_URL: ${{ inputs.image_url }}
+          GH_TOKEN: ${{ github.token }}
+          BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ secrets.TELEGRAM_PREVIEW_CHAT_ID }}
+        run: |
+          node --input-type=module <<'NODE'
+          const { SOURCE_URL, POST_SUMMARY, IMAGE_URL, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
+          const requestOptions = { signal: AbortSignal.timeout(20000), redirect: 'error' };
+
+          async function sendPreview() {
+            if (!BOT_TOKEN || !/^[1-9]\d*$/.test(CHAT_ID ?? '')) {
+              throw new Error('Проверьте токен бота и положительный ID личного чата в секретах GitHub.');
+            }
+
+            const source = /^https:\/\/github\.com\/ney4teach\/TodayIs\/(pull\/([1-9]\d*)|releases\/tag\/([^?#\s]+))\/?$/i
+              .exec(SOURCE_URL.trim());
+            if (!source) throw new Error('Укажите ссылку на PR или конкретный релиз Today Is.');
+            const endpoint = source[2]
+              ? 'pulls/' + source[2]
+              : 'releases/tags/' + encodeURIComponent(decodeURIComponent(source[3].replace(/\/$/, '')));
+            const response = await fetch('https://api.github.com/repos/ney4teach/TodayIs/' + endpoint, {
+              ...requestOptions,
+              headers: { Authorization: 'Bearer ' + GH_TOKEN, Accept: 'application/vnd.github+json' },
+            });
+            if (!response.ok) throw new Error('GitHub не вернул источник. HTTP ' + response.status);
+            const sourceData = await response.json();
+            const title = (sourceData.title || sourceData.name || sourceData.tag_name).trim();
+            const summary = POST_SUMMARY.trim() || sourceData.body?.trim();
+            if (!summary) throw new Error('В источнике нет описания. Заполните поле summary.');
+
+            const image = IMAGE_URL.trim();
+            if (image && !/^https:\/\/[^\s]+$/i.test(image)) {
+              throw new Error('Для скриншота нужна прямая HTTPS-ссылка.');
+            }
+
+            const text = ['Черновик для Today Is', title, summary, sourceData.html_url].join('\n\n');
+            if (text.length > (image ? 1024 : 4096)) {
+              throw new Error('Черновик слишком длинный. Сократите его через поле summary.');
+            }
+            const payload = image
+              ? { chat_id: CHAT_ID, photo: image, caption: text }
+              : { chat_id: CHAT_ID, text, link_preview_options: { is_disabled: true } };
+
+            let telegram;
+            try {
+              telegram = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/' +
+                (image ? 'sendPhoto' : 'sendMessage'), {
+                ...requestOptions,
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+              });
+            } catch {
+              throw new Error('Telegram не ответил. Проверьте личку перед повторным запуском.');
+            }
+            if (!telegram.ok || !(await telegram.json()).ok) {
+              throw new Error('Telegram не принял черновик. HTTP ' + telegram.status);
+            }
+            console.log('Черновик отправлен в личный чат.');
+          }
+
+          await sendPreview().catch((error) => {
+            console.error(error.message);
+            process.exitCode = 1;
+          });
+          NODE
