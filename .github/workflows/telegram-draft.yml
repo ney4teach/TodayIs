@@ -107,16 +107,13 @@ jobs:
               await form.locator('input[type="search"][placeholder="Поиск в Яндекс"]').waitFor();
               await form.locator('.search-mic').waitFor({ state: 'visible' });
               await form.scrollIntoViewIfNeeded();
-              const box = await form.boundingBox();
-              if (!box) throw new Error('Поисковая строка не видна на странице.');
-              const viewport = page.viewportSize();
-              const x = Math.max(0, Math.floor(box.x) - 24);
-              const y = Math.max(0, Math.floor(box.y) - 24);
-              const right = Math.min(viewport.width, Math.ceil(box.x + box.width) + 24);
-              const bottom = Math.min(viewport.height, Math.ceil(box.y + box.height) + 24);
               await page.screenshot({
-                path: 'todayis-preview.png', animations: 'disabled',
-                clip: { x, y, width: right - x, height: bottom - y },
+                path: 'todayis-preview.png',
+                animations: 'disabled',
+                style: [
+                  '#board [data-id]:not([data-id="search"]) { filter: blur(3px) brightness(.78); }',
+                  '#board [data-id="search"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
+                ].join('\n'),
               });
             } else {
               if (scenario === 'wallpaper-accent') {
@@ -238,14 +235,23 @@ jobs:
               .replace(/^\s*[-*][ \t]+/gm, '• ')
               .replace(/\[([^\]\n]+)\]\(https?:\/\/[^)\n]+\)/g, '$1')
               .replace(/https?:\/\/\S+/g, '')
-              .replace(/\*\*|__|\x60/g, '').trim();
+              .replace(/\x60/g, '').trim();
 
             const heading = '✨ ' + postTitle(title);
-            if ([heading, summary].join('\n\n').length > ((image || generated) ? 1024 : 4096)) {
+            if ([heading, summary.replace(/\*\*|__/g, '')].join('\n\n').length > ((image || generated) ? 1024 : 4096)) {
               throw new Error('Черновик слишком длинный. Сократите его через поле summary.');
             }
             const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-            const text = '<b>' + escape(heading) + '</b>' + (summary ? '\n\n' + escape(summary) : '');
+            const emphasis = /(\*\*|__)(\S(?:.*?\S)?)\1/g;
+            const formattedSummary = summary.split('\n').map((line) => {
+              const escaped = escape(line);
+              const highlighted = escaped.replace(emphasis, '<b>$2</b>');
+              if (highlighted !== escaped || !line.startsWith('• ')) return highlighted;
+              const firstSentence = /^• (.+?(?:[.!?](?=\s|$)|$))/.exec(line);
+              if (!firstSentence) return highlighted;
+              return '• <b>' + escape(firstSentence[1]) + '</b>' + escape(line.slice(firstSentence[0].length));
+            }).join('\n');
+            const text = '<b>' + escape(heading) + '</b>' + (summary ? '\n\n' + formattedSummary : '');
             const common = { chat_id: CHAT_ID, parse_mode: 'HTML' };
             const payload = image
               ? { ...common, photo: image, caption: text }
