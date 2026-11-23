@@ -5,7 +5,7 @@ const names = {greeting:'Приветствие',clock:'Часы',search:'Пои
 const ids = Object.keys(names), widths = {xs:1,sm:2,md:3,lg:4,xl:6}, gap = 16, rows = 5;
 const engines = {Google:'https://www.google.com/search?q=',Яндекс:'https://yandex.ru/search/?text=',DuckDuckGo:'https://duckduckgo.com/?q='};
 const quotes = ['Большие дела начинаются с маленького шага.','Оставь сегодня место для любопытства.','Иногда лучшая идея приходит во время прогулки.','Даже короткая пауза помогает увидеть больше.','У каждого дела есть первый черновик.','Найди время для того, что хочется запомнить.'];
-const paths={appearance:'M12 3a9 9 0 1 0 0 18c3 0 3-2 2-3s-1-3 1-3h2a5 5 0 0 0 4-5c0-4-4-7-9-7z M7 11h.1 M10 7h.1 M15 8h.1',account:'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21a8 8 0 0 1 16 0',clock:'M12 8v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',search:'M16 16l5 5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',weather:'M6 18a5 5 0 0 1 0-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8Z',bookmarks:'M6 4h12v17l-6-4-6 4Z',calendar:'M3 6h18v15H3z M3 10h18 M7 3v5m10-5v5',tasks:'M3 6l2 2 3-4m3 3h10 M3 15l2 2 3-4m3 3h10',quote:'M4 11h6v7H3v-6q0-5 6-7 M15 11h6v7h-7v-6q0-5 6-7',music:'M9 17V6l11-3v12 M9 17a3 2 0 1 1-6 0 3 2 0 0 1 6 0 M20 15a3 2 0 1 1-6 0 3 2 0 0 1 6 0',system:'M6 6h12v12H6z M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4',manage:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',sort:'M3 5h17M3 11h12M3 17h6m8-3 3 4 3-4m-3-5v9',settings:'M4 6h16M4 12h16M4 18h16 M9 3v6m7 0v6m-8 0v6'};
+const paths={searchChevron:'m6 9 6 6 6-6',searchMic:'M9 9V5a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0z M5 9a7 7 0 0 0 14 0m-7 7v5m-3 0h6',searchArrow:'M4 12h15m-6-6 6 6-6 6',appearance:'M12 3a9 9 0 1 0 0 18c3 0 3-2 2-3s-1-3 1-3h2a5 5 0 0 0 4-5c0-4-4-7-9-7z M7 11h.1 M10 7h.1 M15 8h.1',account:'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21a8 8 0 0 1 16 0',clock:'M12 8v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',search:'M16 16l5 5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',weather:'M6 18a5 5 0 0 1 0-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8Z',bookmarks:'M6 4h12v17l-6-4-6 4Z',calendar:'M3 6h18v15H3z M3 10h18 M7 3v5m10-5v5',tasks:'M3 6l2 2 3-4m3 3h10 M3 15l2 2 3-4m3 3h10',quote:'M4 11h6v7H3v-6q0-5 6-7 M15 11h6v7h-7v-6q0-5 6-7',music:'M9 17V6l11-3v12 M9 17a3 2 0 1 1-6 0 3 2 0 0 1 6 0 M20 15a3 2 0 1 1-6 0 3 2 0 0 1 6 0',system:'M6 6h12v12H6z M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4',manage:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',sort:'M3 5h17M3 11h12M3 17h6m8-3 3 4 3-4m-3-5v9',settings:'M4 6h16M4 12h16M4 18h16 M9 3v6m7 0v6m-8 0v6'};
 function el(tag,cls,txt){const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n}
 function icon(key){const n=document.createElementNS('http://www.w3.org/2000/svg','svg');for(const [k,v] of Object.entries({viewBox:'0 0 24 24',class:'ico',fill:'none',stroke:'currentColor','stroke-width':1.6,'stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':true}))n.setAttribute(k,v);const p=document.createElementNS(n.namespaceURI,'path');p.setAttribute('d',paths[key]);n.append(p);return n}
 function btn(label,txt,fn,cls=''){const b=el('button',cls,txt);b.type='button';b.title=label;b.setAttribute('aria-label',label);b.onclick=fn;return b}
@@ -251,11 +251,115 @@ function clockFields() {
   }
   fields.append(group);
 }
+
+function renderSearch(container) {
+  const form = el('form', 'search-bar');
+  form.setAttribute('role', 'search');
+
+  const picker = el('label', 'search-picker');
+  const engine = el('select');
+  engine.setAttribute('aria-label', 'Поисковая система для этой вкладки');
+  for (const name of Object.keys(engines)) {
+    const option = el('option', '', name);
+    option.value = name;
+    engine.append(option);
+  }
+  engine.value = state.engine;
+  picker.append(icon('search'), icon('searchChevron'), engine);
+
+  const query = input('', 'search');
+  query.autocomplete = 'off';
+  query.setAttribute('aria-label', 'Поисковый запрос');
+  function updateEngine() {
+    query.placeholder = 'Поиск в ' + engine.value;
+    picker.title = 'Поисковик: ' + engine.value;
+  }
+  engine.addEventListener('change', updateEngine);
+  updateEngine();
+
+  const mic = el('button', 'search-mic');
+  mic.type = 'button';
+  mic.setAttribute('aria-label', 'Голосовой ввод');
+  mic.setAttribute('aria-pressed', 'false');
+  mic.title = 'Голосовой ввод';
+  mic.append(icon('searchMic'));
+
+  const submit = el('button', 'search-submit');
+  submit.type = 'submit';
+  submit.setAttribute('aria-label', 'Искать');
+  submit.title = 'Искать';
+  submit.append(icon('searchArrow'));
+
+  const status = el('span', 'search-status');
+  status.setAttribute('role', 'status');
+  let statusTimer;
+  function announce(message = '', persistent = false) {
+    clearTimeout(statusTimer);
+    status.textContent = message;
+    if (message && !persistent) statusTimer = setTimeout(() => { status.textContent = ''; }, 5000);
+  }
+
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  let active;
+  if (!Recognition) {
+    mic.disabled = true;
+    mic.title = 'Голосовой ввод недоступен в этом браузере';
+  }
+  mic.addEventListener('click', () => {
+    if (active) {
+      active.stop();
+      return;
+    }
+    const recognition = new Recognition();
+    recognition.lang = document.documentElement.lang || navigator.language;
+    active = recognition;
+    mic.setAttribute('aria-pressed', 'true');
+    announce('Включаем микрофон…', true);
+    recognition.onaudiostart = () => announce('Слушаю…', true);
+    recognition.onresult = event => {
+      if (!form.isConnected) return;
+      query.value = event.results[event.resultIndex][0].transcript.trim();
+      announce();
+      query.focus();
+    };
+    recognition.onerror = event => {
+      const errors = {
+        'not-allowed': 'Разрешите доступ к микрофону в Chrome',
+        'service-not-allowed': 'Распознавание речи недоступно',
+        'audio-capture': 'Микрофон недоступен',
+        'no-speech': 'Речь не распознана. Попробуйте ещё раз',
+        network: 'Сервис распознавания недоступен'
+      };
+      announce(errors[event.error] || 'Не удалось распознать речь');
+    };
+    recognition.onend = () => {
+      active = null;
+      mic.setAttribute('aria-pressed', 'false');
+      if (['Включаем микрофон…', 'Слушаю…'].includes(status.textContent)) announce();
+    };
+    try {
+      recognition.start();
+    } catch {
+      recognition.onend();
+      announce('Не удалось включить микрофон');
+    }
+  });
+
+  form.addEventListener('submit', event => {
+    event.preventDefault();
+    const value = query.value.trim();
+    if (value) location.assign(engines[engine.value] + encodeURIComponent(value));
+    else query.focus();
+  });
+  form.append(picker, query, mic, submit);
+  container.append(form, status);
+}
+
 function contents(id,n){const now=new Date();
  switch(id){
  case 'greeting':{const h=now.getHours(),name=state.tiles.greeting.nickname;const greeting=h<5?'Доброй ночи':h<12?'Доброе утро':h<18?'Добрый день':'Добрый вечер';n.append(el('div','greet-date',now.toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'})),el('div','big',name?greeting+', '+name:greeting));break}
  case 'clock':renderClock(n);break;
- case 'search':{n.append(cap(id));const f=el('form','search'),q=input('','search');q.placeholder='Найти в '+state.engine;q.setAttribute('aria-label','Поисковый запрос');const b=el('button','','→');b.setAttribute('aria-label','Искать');f.append(q,b);f.onsubmit=e=>{e.preventDefault();if(q.value.trim())location.assign(engines[state.engine]+encodeURIComponent(q.value.trim()))};n.append(f);break}
+ case 'search': renderSearch(n); break;
  case 'weather':renderWeather(n);break
  case 'bookmarks':renderBookmarks(n);break;
  case 'calendar':calendar(n);break;case 'tasks':tasks(n);break;
