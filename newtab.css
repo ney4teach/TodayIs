@@ -98,6 +98,11 @@ dialog[data-view="settings"] .cloud-settings {border:0;padding:0}
 }
 .card[data-id=clock] .time {font-size:min(36cqw,65cqh,76px);white-space:nowrap}
 .clock-city {max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:min(13px,17cqh);line-height:1.2;padding:1px 0;border:0;background:transparent;color:var(--muted)}
+.clock-date {font-size:clamp(.7em,6cqw,1em);line-height:1.2;text-transform:capitalize}
+.card[data-id=clock] {container:clock / size}
+@container clock (max-width:260px) or (max-height:100px) {
+  .clock-date {display:none}
+}
 .clock-dial {position:relative;width:min(95cqw,88cqh,104px);aspect-ratio:1;flex:none;border:1px solid var(--line);border-radius:50%;background:repeating-conic-gradient(from -1deg,var(--muted) 0 2deg,transparent 2deg 30deg);isolation:isolate}
 .clock-dial:has(+ .clock-city) {width:min(95cqw,68cqh,104px)}
 .clock-dial::before {content:'';position:absolute;inset:6%;border-radius:50%;background:var(--bg)}
@@ -117,15 +122,94 @@ dialog[data-view="settings"] .cloud-settings {border:0;padding:0}
   width:1px; height:min(36%,44px); border-radius:1px;
   background:var(--muted); opacity:.38; pointer-events:none;
 }
-.activity-button {width:50%;height:100%;border:0;padding:0;background:transparent;display:grid;place-items:center;container-type:size}
-.activity-button:focus-visible {outline-offset:-4px}
-.activity-ring {width:min(85cqw,84cqh,128px);aspect-ratio:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2}
-.activity-ring::before {content:'';position:absolute;inset:0;border-radius:50%;background:var(--activity-fill);mask:radial-gradient(closest-side,transparent 78%,black 80%)}
-.activity-ring strong {font-size:min(15cqw,15cqh,19px);font-variant-numeric:tabular-nums}
-.activity-ring small {font-size:min(12cqw,11cqh,12px)}
-.activity-row {display:grid;grid-template-columns:8px 1fr auto;align-items:center;gap:10px}
-.activity-row i {height:8px;border-radius:50%}
-.activity-row span {overflow-wrap:anywhere}
+.activity-button, dialog[data-view=activity] {
+  --activity-media:#f0a185;
+  --activity-work:#91c9ff;
+  --activity-social:#79d6b6;
+  --activity-other:#b7acd5;
+}
+body.light :is(.activity-button,dialog[data-view=activity]) {
+  --activity-media:#e8b09c;
+  --activity-work:#a9c9e5;
+  --activity-social:#a8cfbc;
+  --activity-other:#c7bcdb;
+}
+.activity-mosaic {
+  position:relative;display:block;width:100%;height:100%;min-height:0;
+  border-radius:8px;background:var(--line);overflow:hidden;isolation:isolate;
+}
+.activity-mosaic-block {
+  position:absolute;border:2px solid var(--surface);border-radius:8px;
+  background:var(--tile-color);min-width:0;min-height:0;
+  container-type:size;overflow:hidden;
+}
+.activity-center-image {
+  position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);
+  display:block;width:45%;height:65%;object-fit:contain;pointer-events:none;
+}
+.activity-center-image[data-center=logo] {width:34%;height:60%;border-radius:20%}
+.activity-peek {
+  position:absolute;right:5%;bottom:0;width:min(90cqw,150cqh);aspect-ratio:128 / 74;
+  overflow:hidden;pointer-events:none;
+}
+.activity-peek .activity-center-image {
+  inset:0 auto auto 0;transform:none;width:100%;height:auto;
+  clip-path:inset(0 11% 15%);filter:drop-shadow(0 1px 2px #40251040);
+}
+.activity-peek::before,.activity-peek::after {
+  content:"";position:absolute;bottom:0;width:11%;aspect-ratio:1;
+  border:1px solid #b97a25;border-radius:50%;background:#ffe7aa;
+  box-shadow:0 1px 2px #40251030;
+}
+.activity-peek::before {left:6%}
+.activity-peek::after {right:6%}
+.card[data-id=clock] .clock-left {
+  width:50%;align-items:center;padding:0 10px;min-width:0;text-align:center;
+}
+.card[data-id=clock] .inside::after {left:50%}
+.activity-button {
+  width:50%;height:100%;border:0;padding:2px 10px;background:transparent;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:8px;container:activity / size;color:var(--ink);
+}
+.activity-button:hover {background:var(--field)}
+.activity-button:focus-visible {outline-offset:-3px}
+.activity-button .activity-mosaic {width:min(100%,180px);height:min(55cqh,80px);flex:none}
+.activity-copy {display:flex;align-items:baseline;justify-content:center;gap:5px;flex-wrap:wrap;text-align:center;line-height:1.2;order:-1}
+.activity-copy>strong {font-size:clamp(.8em,12cqw,1.35em);font-variant-numeric:tabular-nums}
+.activity-copy>small {font-size:.8em}
+@container activity (max-height:75px) or (max-width:75px) {
+  .activity-copy {display:none}
+  .activity-button .activity-mosaic {height:min(90cqh,55px)}
+}
+dialog[data-view=activity] {width:min(460px,94vw)}
+.activity-periods {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;
+  padding:4px;border:1px solid var(--line);border-radius:14px;background:var(--field);
+}
+.activity-periods button {background:transparent;border-color:transparent;padding-inline:3px;color:var(--muted)}
+.activity-periods button[aria-pressed=true] {
+  border-color:color-mix(in srgb,var(--accent) 34%,var(--line));
+  background:color-mix(in srgb,var(--accent) 14%,var(--glass));color:var(--ink);font-weight:600;
+}
+.activity-report {display:grid;gap:8px}
+.activity-summary {display:flex;align-items:center;gap:16px;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--field)}
+.activity-summary .activity-mosaic {width:88px;height:66px;flex:none}
+.activity-summary strong {display:block;font-size:clamp(1.25em,5vw,2.25em);line-height:1.15;font-variant-numeric:tabular-nums}
+.activity-note {margin:2px 0;padding-inline:4px}
+.activity-key {display:flex;align-items:center;gap:7px;min-width:0}
+.activity-key::before {content:"";width:4px;height:1.1em;border-radius:2px;background:var(--arc);flex:none}
+.activity-group {border:1px solid var(--line);border-radius:11px}
+.activity-heading {display:grid;grid-template-columns:minmax(0,1fr) auto auto 8px;align-items:center;gap:8px;list-style:none;min-height:38px;padding:6px 9px;cursor:pointer}
+.activity-heading::-webkit-details-marker {display:none}
+.activity-heading:focus-visible {outline:2px solid var(--soft);outline-offset:-2px;border-radius:10px}
+.activity-heading strong,.activity-heading small {white-space:nowrap;font-variant-numeric:tabular-nums}
+.activity-heading small {min-width:3em;text-align:right}
+.activity-heading::after {content:"";width:6px;height:6px;border:solid var(--muted);border-width:0 1px 1px 0;transform:rotate(45deg)}
+details[open]>.activity-heading::after {transform:rotate(225deg)}
+.activity-site {display:flex;justify-content:space-between;gap:12px;padding:5px 12px;color:var(--muted);font-size:.93em}
+.activity-site span:first-child {overflow-wrap:anywhere}
+.activity-site span:last-child {white-space:nowrap}
 
 .card[data-id="bookmarks"] .cap > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 .card[data-id="bookmarks"] .cap > button:first-child { margin-left:0; font-size:20px }
@@ -208,3 +292,43 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .widget-scale {display:grid;gap:8px}
 .widget-scale input[type="range"] {width:100%;margin:0;padding:0;accent-color:var(--accent);cursor:pointer}
 #widget-scale-value {font-variant-numeric:tabular-nums}
+
+/* Clock settings */
+#dialog[data-view=settings]:has(.clock-settings-preview) #fields {gap:22px}
+.clock-settings-preview .card[data-id=clock] {
+  position:relative;inset:auto;width:100%;height:138px;box-shadow:none;
+  background:var(--surface);border-radius:18px;backdrop-filter:none;
+}
+.clock-settings-preview button:disabled {opacity:1;cursor:default}
+.clock-settings-preview .activity-copy>small {font-size:.7em}
+.clock-choices,.clock-city-choices {border:0;padding:0;margin:0;min-width:0}
+.clock-choices legend,.clock-city-choices legend {font-size:1em;font-weight:600;margin-bottom:10px;padding:0}
+.clock-choice-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.clock-choices:has(input[name="clock-activityCenter"]) .clock-choice-grid {grid-template-columns:repeat(3,minmax(0,1fr))}
+.clock-choice {
+  position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:7px;padding:12px 6px;border:1px solid var(--line);border-radius:14px;
+  background:var(--field);cursor:pointer;min-width:0;text-align:center;
+}
+.clock-choice:hover {background:color-mix(in srgb,var(--accent) 8%,var(--field))}
+.clock-choice:has(input:checked) {border-color:var(--soft);background:color-mix(in srgb,var(--accent) 13%,var(--field))}
+.clock-choice:has(input:focus-visible) {outline:2px solid var(--soft);outline-offset:3px}
+.clock-choice input {position:absolute;opacity:0;width:1px;height:1px;padding:0;top:8px;left:8px}
+.clock-choice-label {font-size:.85em;overflow-wrap:anywhere}
+.clock-face-sample {display:grid;place-items:center;width:100%;height:60px;container-type:size}
+.clock-sample-digital {font-size:2em;font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+.clock-face-sample .clock-dial {width:52px}
+.clock-image-sample {display:grid;place-items:center;width:100%;height:46px}
+.clock-image-sample img {width:54px;height:44px;object-fit:contain}
+.clock-image-sample .activity-mosaic {width:54px;height:36px;--activity-work:#91c9ff;--activity-media:#f0a185;--activity-social:#79d6b6;--activity-other:#b7acd5}
+.clock-settings-hint {font-size:.85em;line-height:1.45;margin:0 0 12px}
+.clock-city-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.clock-city-choice {display:flex;align-items:center;gap:7px;padding:9px 8px;border:1px solid var(--line);border-radius:10px;background:var(--field);font-size:.85em;cursor:pointer;min-width:0}
+.clock-city-choice span {overflow-wrap:anywhere}
+.clock-city-choice:has(input:checked) {border-color:var(--soft);background:color-mix(in srgb,var(--accent) 12%,var(--field))}
+.clock-city-choice:has(input:focus-visible) {outline:2px solid var(--soft);outline-offset:2px}
+.clock-city-choice input {width:14px;height:14px;flex:none;margin:0}
+@media (prefers-reduced-motion:no-preference) {
+  .clock-choice,.clock-city-choice {transition:background .15s,border-color .15s}
+}
+.clock-preview-caption {display:block;margin-top:7px;font-size:.75em;text-align:center;color:var(--muted)}

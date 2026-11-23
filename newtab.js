@@ -26,9 +26,16 @@ const clockCities = {
   'Asia/Irkutsk':'Иркутск', 'Asia/Vladivostok':'Владивосток', 'Europe/London':'Лондон',
   'Europe/Paris':'Париж', 'Asia/Dubai':'Дубай', 'Asia/Tokyo':'Токио', 'America/New_York':'Нью-Йорк'
 };
+const clockActivityCenters = [['mascot','Маскот'],['logo','Логотип'],['none','Пустой центр']];
+const clockActivityImages = {mascot:'icons/clock-mascot.webp',logo:'icons/clock-logo.webp'};
 function clockOptions(raw = {}) {
   const cities = ['local', ...Object.keys(clockCities).filter(zone => zone !== 'local' && Array.isArray(raw?.cities) && raw.cities.includes(zone))];
-  return {face:one(raw?.face,['digital','analog'],'digital'), cities, zone:one(raw?.zone,cities,'local')};
+  return {
+    face:one(raw?.face,['digital','analog'],'digital'),
+    cities,
+    zone:one(raw?.zone,cities,'local'),
+    activityCenter:one(raw?.activityCenter,clockActivityCenters.map(([value])=>value),'none')
+  };
 }
 const widgetScaleRange = {min:60, max:100, step:5};
 
@@ -154,6 +161,8 @@ function updateClock(display, now = new Date()) {
     }));
   }
   const time = clockFormats.get(zone).format(now);
+  const date=display.parentElement?.querySelector('.clock-date');
+  if (date) date.textContent=new Intl.DateTimeFormat('ru-RU',{weekday:'long',day:'numeric',month:'long',timeZone:zone==='local'?undefined:zone}).format(now);
   if (face === 'digital') {
     display.textContent = time;
   } else {
@@ -173,8 +182,9 @@ function renderClock(container) {
     display.setAttribute('role','img');
     display.append(el('i','hour-hand'),el('i','minute-hand'));
   }
-  updateClock(display);
   n.append(display);
+  n.append(el('small','clock-date'));
+  updateClock(display);
   if (cities.length > 1) {
     const next = btn('Следующий город. Сейчас '+clockCities[zone],clockCities[zone]+' ›',()=>change(s=>{
       const clock = s.clock;
@@ -183,8 +193,70 @@ function renderClock(container) {
     n.append(next);
   }
 }
-const activityColors = ['#8585ff','#36c7aa','#f3a95d','#cf83e9','#61aae8','#9695a3'];
-let activityRows = [], activityReady = false, activityRequest = 0;
+// Match complete domain labels, including subdomains. Unknown sites keep their time.
+const activityCategories = [
+  {name:'Медиа и игры',tone:'media',domains:'youtube.com youtu.be twitch.tv rutube.ru kinopoisk.ru okko.tv ivi.ru netflix.com spotify.com music.yandex.ru music.yandex.com store.steampowered.com steamcommunity.com'},
+  {name:'Работа и учёба',tone:'work',domains:'github.com gitlab.com stackoverflow.com developer.mozilla.org notion.so notion.site figma.com docs.google.com drive.google.com calendar.google.com disk.yandex.ru tracker.yandex.ru wikipedia.org stepik.org coursera.org chatgpt.com'},
+  {name:'Общение',tone:'social',domains:'vk.com vk.ru ok.ru telegram.org t.me whatsapp.com discord.com reddit.com x.com mail.google.com mail.yandex.ru e.mail.ru teams.microsoft.com slack.com'},
+  {name:'Другое',tone:'other',domains:''}
+].map(group=>({...group,domains:group.domains.split(' ').filter(Boolean)}));
+
+function activityBreakdown(rows) {
+  const groups=activityCategories.map(category=>({...category,sites:[],time:0}));
+  let total=0;
+  for (const [site,time] of rows) {
+    const host=site.toLowerCase().replace(/\.$/,'');
+    const group=groups.find(g=>g.domains.some(d=>host===d || host.endsWith('.'+d))) || groups.at(-1);
+    group.sites.push([site,time]);
+    group.time+=time;
+    total+=time;
+  }
+  return {groups,total};
+}
+
+function activityRing(groups,total) {
+  const mosaic=el('span','activity-mosaic');
+  mosaic.setAttribute('aria-hidden','true');
+  const visible=groups.filter(group=>group.time>0).sort((a,b)=>b.time-a.time);
+  let x=0, y=0, width=100, height=100, remaining=total;
+  for (const [index,group] of visible.entries()) {
+    const block=el('span','activity-mosaic-block');
+    block.style.setProperty('--tile-color',`var(--activity-${group.tone})`);
+    const fraction=group.time/remaining;
+    const vertical=index%2===0;
+    const blockWidth=vertical?width*fraction:width;
+    const blockHeight=vertical?height:height*fraction;
+    Object.assign(block.style,{left:x+'%',top:y+'%',width:blockWidth+'%',height:blockHeight+'%'});
+    mosaic.append(block);
+    if (vertical) { x+=blockWidth; width-=blockWidth; }
+    else { y+=blockHeight; height-=blockHeight; }
+    remaining-=group.time;
+  }
+  const source=clockActivityImages[state.clock.activityCenter];
+  if (source) {
+    const image=el('img','activity-center-image');
+    image.dataset.center=state.clock.activityCenter;
+    image.src=source;
+    image.alt='';
+    image.draggable=false;
+    if (state.clock.activityCenter==='mascot') {
+      const peek=el('span','activity-peek');
+      peek.append(image);
+      const largest=mosaic.querySelector('.activity-mosaic-block');
+      if (largest) largest.append(peek);
+    } else {
+      mosaic.append(image);
+    }
+  }
+  return mosaic;
+}
+
+const activityPeriods = [
+  [1,'24 часа','За последние 24 часа'],
+  [7,'7 дней','За последние 7 дней'],
+  [30,'Месяц','За последние 30 дней']
+];
+let activityData, activityPeriod = 1, activityRequest = 0;
 function duration(ms) {
   const minutes = Math.floor(ms/60000);
   if (!minutes) return ms ? Math.max(1,Math.floor(ms/1000))+' с' : '0 мин';
@@ -192,43 +264,89 @@ function duration(ms) {
   return Math.floor(minutes/60)+' ч'+(minutes%60?' '+minutes%60+' мин':'');
 }
 function paintActivity(button) {
-  const total = activityRows.reduce((sum,row)=>sum+row[1],0);
-  let angle = 0;
-  const stops = activityRows.slice(0,6).map((row,index)=>{
-    const start = angle;
-    angle = index===5 ? total/240000 : angle+row[1]/240000;
-    return activityColors[index]+' '+start+'deg '+angle+'deg';
-  });
-  stops.push('var(--line) '+angle+'deg 360deg');
-  button.style.setProperty('--activity-fill','conic-gradient('+stops.join(',')+')');
-  button.querySelector('strong').textContent = activityReady ? duration(total) : '—';
-  button.setAttribute('aria-label','Активность на сайтах за 24 часа. '+(activityReady?duration(total):'Нет данных')+'. Открыть по сайтам');
+  const rows=activityData?.summaries[1];
+  const {groups,total}=activityBreakdown(rows || []);
+  const value=rows?duration(total):'—';
+  const copy=el('span','activity-copy');
+  copy.append(el('strong','',value),el('small','','на сайтах'));
+  button.replaceChildren(activityRing(groups,total,value),copy);
+  button.title='Время на сайтах за последние 24 часа · '+value;
+  button.setAttribute('aria-label',button.title+'. Открыть категории и сайты');
 }
 function activityDetails() {
-  modal('Активность за 24 часа','activity');
-  if (!activityRows.length) {
-    fields.append(el('p','muted',activityReady?'Пока нет времени на сайтах. Здесь появятся сайты, которые ты открываешь после включения учёта.':'Не удалось получить статистику. Перезагрузи расширение на странице расширений и открой новую вкладку.'));
+  modal('Активность на сайтах','activity');
+  const periods=el('div','activity-periods');
+  periods.setAttribute('role','group');
+  periods.setAttribute('aria-label','Период статистики');
+  for (const [days,label] of activityPeriods) {
+    const control=btn(label,label,()=>{
+      activityPeriod=days;
+      paintActivityReport();
+    });
+    control.dataset.days=days;
+    control.setAttribute('aria-controls','activity-report');
+    periods.append(control);
   }
-  activityRows.forEach(([host,time],index)=>{
-    const row=el('div','activity-row'), dot=el('i');
-    dot.style.background=activityColors[Math.min(index,5)];
-    row.append(dot,el('span','',host),el('strong','',duration(time)));fields.append(row);
-  });
+  const report=el('div','activity-report');
+  report.id='activity-report';
+  fields.append(periods,report);
+  paintActivityReport();
+}
+function paintActivityReport() {
+  const report=fields.querySelector('.activity-report');
+  const expanded=new Set(Array.from(report.querySelectorAll('.activity-group[open]'),node=>node.dataset.name));
+  const focused=document.activeElement?.matches('.activity-heading')?document.activeElement.parentElement.dataset.name:null;
+  const rows=activityData?.summaries[activityPeriod];
+  const {groups,total}=activityBreakdown(rows || []);
+  for (const control of fields.querySelectorAll('.activity-periods button')) {
+    control.setAttribute('aria-pressed',String(Number(control.dataset.days)===activityPeriod));
+  }
+  const [, , label]=activityPeriods.find(([days])=>days===activityPeriod);
+  const hero=el('div','activity-summary'), copy=el('div','activity-summary-copy');
+  const value=rows?duration(total):'—';
+  copy.setAttribute('aria-live','polite');
+  copy.append(el('small','',label),el('strong','',value));
+  hero.append(activityRing(groups,total,value),copy);
+  report.replaceChildren(hero);
+  if (rows && activityPeriod>1 && activityData.now-activityData.since<activityPeriod*86400000) {
+    const since=new Date(activityData.since).toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
+    report.append(el('small','activity-note','История пока доступна с '+since));
+  }
+  if (!total) {
+    const message=rows?'За этот период активности пока нет.':activityData===undefined?'Загружаем статистику…':'Статистика сейчас недоступна.';
+    report.append(el('p','activity-note muted',message));
+    return;
+  }
+  for (const group of groups.filter(group=>group.time).sort((a,b)=>b.time-a.time)) {
+    const section=el('details','activity-group');
+    section.dataset.name=group.name;
+    section.style.setProperty('--arc',`var(--activity-${group.tone})`);
+    const head=el('summary','activity-heading');
+    const share=100*group.time/total;
+    head.append(el('span','activity-key',group.name),el('strong','',duration(group.time)),el('small','',share<1?'<1%':Math.round(share)+'%'));
+    section.append(head);
+    section.open=expanded.has(group.name);
+    for (const [host,time] of group.sites) {
+      const row=el('div','activity-site');
+      row.append(el('span','',host),el('span','',duration(time)));section.append(row);
+    }
+    report.append(section);
+    if (focused===group.name) head.focus({preventScroll:true});
+  }
 }
 async function refreshActivity() {
   const revision=++activityRequest;
-  let rows;
-  try { rows=await globalThis.chrome?.runtime?.sendMessage({type:'activity-summary'}) } catch {}
+  let data;
+  try { data=await globalThis.chrome?.runtime?.sendMessage({type:'activity-summary',periods:true}) } catch {}
   if (revision!==activityRequest) return;
-  activityReady=Array.isArray(rows);activityRows=activityReady?rows:[];
+  activityData=activityPeriods.every(([days])=>Array.isArray(data?.summaries?.[days]))?data:null;
   const button=board.querySelector('.activity-button');
   if (button) paintActivity(button);
-  if (dialog.open && activeDialog==='activity') activityDetails();
+  if (dialog.open && activeDialog==='activity') paintActivityReport();
 }
 function activityButton() {
   const button=btn('Активность за 24 часа','',activityDetails,'activity-button');
-  const ring=el('span','activity-ring');
-  ring.append(el('strong'),el('small','','за 24 ч'));button.append(ring);
+  button.setAttribute('aria-haspopup','dialog');
   paintActivity(button);refreshActivity();
   return button;
 }
@@ -237,20 +355,92 @@ document.addEventListener('visibilitychange',()=>{
 });
 setInterval(()=>{if (!document.hidden && board.querySelector('.activity-button')) refreshActivity()},60000);
 function clockFields() {
-  selectField('Циферблат',[['digital','Цифровой'],['analog','Стрелочный']],state.clock.face,v=>change(s=>s.clock.face=v));
-  const group = el('fieldset','clock-zones');
-  group.append(el('legend','','Города для переключения'));
+  const preview=el('div','clock-settings-preview');
+  preview.setAttribute('aria-label','Предпросмотр часов');
+  const card=el('div','card');
+  card.dataset.id='clock';
+  const inside=el('div','inside');
+  card.append(inside);
+  preview.append(card);
+  renderClock(inside);
+  const {groups,total}=activityBreakdown([['github.com',4800000],['youtube.com',2880000],['t.me',1920000]]);
+  const copy=el('span','activity-copy');
+  copy.append(el('strong','',duration(total)),el('small','','на сайтах'));
+  inside.querySelector('.activity-button').replaceChildren(activityRing(groups,total),copy);
+  preview.append(el('small','clock-preview-caption','Пример данных активности'));
+  for (const button of inside.querySelectorAll('button')) button.disabled=true;
+  fields.append(preview);
+
+  function choices(title,key,options,visual) {
+    const section=el('fieldset','clock-choices');
+    section.append(el('legend','',title));
+    const list=el('div','clock-choice-grid');
+    for (const [value,label] of options) {
+      const item=el('label','clock-choice');
+      const radio=input('','radio');
+      radio.name='clock-'+key;
+      radio.value=value;
+      radio.checked=state.clock[key]===value;
+      radio.onchange=async()=>{
+        await change(s=>s.clock[key]=value);
+        fields.querySelector('input[name="clock-'+key+'"][value="'+value+'"]')?.focus({preventScroll:true});
+      };
+      item.append(radio,visual(value),el('span','clock-choice-label',label));
+      list.append(item);
+    }
+    section.append(list);
+    fields.append(section);
+  }
+  choices('Циферблат','face',[['digital','Цифровой'],['analog','Стрелочный']],value=>{
+    const sample=el('span','clock-face-sample');
+    if (value==='digital') sample.append(el('span','clock-sample-digital','10:08'));
+    else {
+      const dial=el('span','clock-dial');
+      dial.style.setProperty('--hour','304deg');
+      dial.style.setProperty('--minute','48deg');
+      dial.append(el('i','hour-hand'),el('i','minute-hand'));
+      sample.append(dial);
+    }
+    return sample;
+  });
+  choices('На диаграмме','activityCenter',clockActivityCenters.map(([value,label])=>[value,value==='none'?'Без изображения':label]),value=>{
+    const sample=el('span','clock-image-sample');
+    if (value==='none') {
+      const {groups,total}=activityBreakdown([['github.com',50],['youtube.com',30],['t.me',20]]);
+      const mosaic=activityRing(groups,total);
+      mosaic.querySelector('.activity-peek,.activity-center-image')?.remove();
+      sample.append(mosaic);
+    } else {
+      const image=el('img');
+      image.src=clockActivityImages[value];
+      image.alt='';
+      image.draggable=false;
+      sample.append(image);
+    }
+    return sample;
+  });
+  const group=el('fieldset','clock-city-choices');
+  group.append(el('legend','','Города'));
+  group.append(el('p','muted clock-settings-hint','Местное время включено всегда. Выбранные города переключаются в виджете.'));
+  const list=el('div','clock-city-grid');
   for (const [zone,name] of Object.entries(clockCities)) {
     if (zone==='local') continue;
-    const label = el('label'), toggle = input('','checkbox');
-    toggle.checked = state.clock.cities.includes(zone);
-    toggle.onchange = ()=>change(s=>{
-      s.clock.cities = toggle.checked ? [...s.clock.cities,zone] : s.clock.cities.filter(v=>v!==zone);
-    });
-    label.append(toggle,document.createTextNode(name));group.append(label);
+    const label=el('label','clock-city-choice'), toggle=input('','checkbox');
+    toggle.checked=state.clock.cities.includes(zone);
+    toggle.onchange=async()=>{
+      await change(s=>{
+        s.clock.cities=toggle.checked?[...s.clock.cities,zone]:s.clock.cities.filter(v=>v!==zone);
+      });
+      Array.from(fields.querySelectorAll('.clock-city-choice input')).find(node=>node.dataset.zone===zone)?.focus({preventScroll:true});
+    };
+    toggle.dataset.zone=zone;
+    label.append(toggle,el('span','',name));
+    list.append(label);
   }
+  group.append(list);
   fields.append(group);
 }
+
 function contents(id,n){const now=new Date();
  switch(id){
  case 'greeting':{const h=now.getHours(),name=state.tiles.greeting.nickname;const greeting=h<5?'Доброй ночи':h<12?'Доброе утро':h<18?'Добрый день':'Добрый вечер';n.append(el('div','greet-date',now.toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'})),el('div','big',name?greeting+', '+name:greeting));break}
@@ -396,5 +586,5 @@ function rotateQuote(){if(stale(state.quote))change(s=>{if(stale(s.quote))s.quot
 async function init(){draw();if(!globalThis.chrome?.storage?.sync){syncStatus='Откройте страницу как расширение Chrome';return}initCloud();chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes[cloudKey]){refresh();renderCloud()}if(area==='sync'&&Object.keys(changes).some(k=>k.startsWith('gntd.')))refresh().catch(()=>toast('Ошибка чтения настроек'))});
  try{await refresh();rotateQuote()}catch{syncStatus='Ошибка чтения настроек';toast(syncStatus)}
  bookmarks();for(const event of ['onCreated','onRemoved','onChanged','onMoved','onImportEnded','onChildrenReordered'])chrome.bookmarks[event].addListener(bookmarks);systemInfo();let lastDay=day(new Date()),hour=new Date().getHours();
- setInterval(()=>{const now=new Date(),t=board.querySelector('[data-clock-display]');if(t)updateClock(t,now);if(hour!==now.getHours()){hour=now.getHours();drawOne('greeting')}if(lastDay!==day(now)){lastDay=day(now);drawOne('calendar')}rotateQuote()},15000);setInterval(()=>{if(!document.hidden&&memory)systemInfo()},60000)}
+ setInterval(()=>{const now=new Date();for(const t of document.querySelectorAll('[data-clock-display]'))updateClock(t,now);if(hour!==now.getHours()){hour=now.getHours();drawOne('greeting')}if(lastDay!==day(now)){lastDay=day(now);drawOne('calendar')}rotateQuote()},15000);setInterval(()=>{if(!document.hidden&&memory)systemInfo()},60000)}
 init();
