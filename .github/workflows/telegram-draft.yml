@@ -165,7 +165,12 @@ jobs:
 
             const cleanBody = body.replace(images, '');
             const notes = /^#{1,6}\s+(?:для подписчиков|что изменилось|summary|changes)\s*\r?$\n([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/im.exec(cleanBody)?.[1];
-            const intro = cleanBody.split(/^#{1,6}\s/m)[0];
+            const intro = cleanBody.split(/^#{1,6}[ \t]+/m)[0]
+              .split(/\r?\n[ \t]*\r?\n/)
+              .filter((paragraph) => !/^(?:в\s+)?(?:\x60?AGENTS\.md\x60?(?=\s|[.,:;]|$)|провер(?:ен[аоы]?|к[аиу])(?=\s|[.,:;]|$)|тесты(?=\s|[.,:;]|$)|git revert(?=\s|[.,:;]|$)|tests?(?=\s|[.,:;]|$)|verification(?=\s|[.,:;]|$))/iu.test(
+                paragraph.trim().replace(/^(?:[-*]\s+|\*\*)/, ''),
+              ))
+              .join('\n\n');
             const summary = (POST_SUMMARY.trim() || notes?.trim() || intro)
               .replace(/^\s*[-*][ \t]+/gm, '• ')
               .replace(/\[([^\]\n]+)\]\(https?:\/\/[^)\n]+\)/g, '$1')
