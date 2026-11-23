@@ -130,6 +130,33 @@ jobs:
           const { SOURCE_URL, POST_SUMMARY, IMAGE_URL, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
           const requestOptions = { signal: AbortSignal.timeout(20000), redirect: 'error' };
 
+          const completedActions = {
+            добавить: 'добавили',
+            обновить: 'обновили',
+            исправить: 'исправили',
+            улучшить: 'улучшили',
+            изменить: 'изменили',
+            переделать: 'переделали',
+            переработать: 'переработали',
+            убрать: 'убрали',
+            удалить: 'удалили',
+            починить: 'починили',
+            вернуть: 'вернули',
+            восстановить: 'восстановили',
+            настроить: 'настроили',
+            включить: 'включили',
+            отключить: 'отключили',
+            упростить: 'упростили',
+            сделать: 'сделали',
+          };
+
+          function postTitle(title) {
+            return title.replace(/^([а-яё]+)(?=\s|[!?.:]|$)/iu, (word) => {
+              const completed = completedActions[word.toLowerCase()];
+              return completed ? completed[0].toUpperCase() + completed.slice(1) : word;
+            });
+          }
+
           async function sendPreview() {
             if (!BOT_TOKEN || !/^[1-9]\d*$/.test(CHAT_ID ?? '')) {
               throw new Error('Проверьте токен бота и положительный ID личного чата в секретах GitHub.');
@@ -177,7 +204,7 @@ jobs:
               .replace(/https?:\/\/\S+/g, '')
               .replace(/\*\*|__|\x60/g, '').trim();
 
-            const heading = '✨ ' + title;
+            const heading = '✨ ' + postTitle(title);
             if ([heading, summary].join('\n\n').length > ((image || generated) ? 1024 : 4096)) {
               throw new Error('Черновик слишком длинный. Сократите его через поле summary.');
             }
