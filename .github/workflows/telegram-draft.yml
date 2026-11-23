@@ -28,7 +28,7 @@ permissions:
 jobs:
   screenshot:
     if: inputs.screenshot == 'wallpaper-accent' && inputs.image_url == ''
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Определить версию расширения
