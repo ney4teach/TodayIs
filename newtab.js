@@ -27,7 +27,6 @@ const clockCities = {
   'Europe/Paris':'Париж', 'Asia/Dubai':'Дубай', 'Asia/Tokyo':'Токио', 'America/New_York':'Нью-Йорк'
 };
 const clockActivityCenters = [['mascot','Маскот'],['logo','Логотип'],['none','Пустой центр']];
-const clockActivityStyles = [['classic','Дуга 270°'],['glow','Градиент'],['dashed','Штрихи']];
 const clockActivityImages = {mascot:'icons/clock-mascot.webp',logo:'icons/clock-logo.webp'};
 function clockOptions(raw = {}) {
   const cities = ['local', ...Object.keys(clockCities).filter(zone => zone !== 'local' && Array.isArray(raw?.cities) && raw.cities.includes(zone))];
@@ -35,8 +34,7 @@ function clockOptions(raw = {}) {
     face:one(raw?.face,['digital','analog'],'digital'),
     cities,
     zone:one(raw?.zone,cities,'local'),
-    activityCenter:one(raw?.activityCenter,clockActivityCenters.map(([value])=>value),'mascot'),
-    activityStyle:one(raw?.activityStyle,clockActivityStyles.map(([value])=>value),'classic')
+    activityCenter:one(raw?.activityCenter,clockActivityCenters.map(([value])=>value),'none')
   };
 }
 const widgetScaleRange = {min:60, max:100, step:5};
@@ -163,6 +161,8 @@ function updateClock(display, now = new Date()) {
     }));
   }
   const time = clockFormats.get(zone).format(now);
+  const date=display.parentElement?.querySelector('.clock-date');
+  if (date) date.textContent=new Intl.DateTimeFormat('ru-RU',{weekday:'long',day:'numeric',month:'long',timeZone:zone==='local'?undefined:zone}).format(now);
   if (face === 'digital') {
     display.textContent = time;
   } else {
@@ -182,8 +182,9 @@ function renderClock(container) {
     display.setAttribute('role','img');
     display.append(el('i','hour-hand'),el('i','minute-hand'));
   }
-  updateClock(display);
   n.append(display);
+  n.append(el('small','clock-date'));
+  updateClock(display);
   if (cities.length > 1) {
     const next = btn('Следующий город. Сейчас '+clockCities[zone],clockCities[zone]+' ›',()=>change(s=>{
       const clock = s.clock;
@@ -213,41 +214,34 @@ function activityBreakdown(rows) {
   return {groups,total};
 }
 
-function activityRing(groups,total,value) {
-  const ring=el('span','activity-ring');
-  ring.setAttribute('aria-hidden','true');
-  ring.dataset.style=state.clock.activityStyle;
-  const isArc=state.clock.activityStyle==='classic';
-  const range=isArc?270:360;
-  const visible=groups.filter(group=>group.time>0);
-  if (visible.length) {
-    let angle=0;
-    const stops=visible.flatMap((group,index)=>{
-      const sweep=range*group.time/total;
-      const end=index===visible.length-1?range:angle+sweep;
-      const gap=visible.length>1?Math.min(1.75,(end-angle)/4):0;
-      const segment=[`transparent ${angle}deg ${angle+gap}deg`,`var(--activity-${group.tone}) ${angle+gap}deg ${end-gap}deg`,`transparent ${end-gap}deg ${end}deg`];
-      angle=end;
-      return segment;
-    });
-    ring.style.setProperty('--activity-fill',`conic-gradient(from var(--activity-start,24deg),${stops.join(',')},transparent ${range}deg 360deg)`);
+function activityRing(groups,total) {
+  const mosaic=el('span','activity-mosaic');
+  mosaic.setAttribute('aria-hidden','true');
+  const visible=groups.filter(group=>group.time>0).sort((a,b)=>b.time-a.time);
+  let x=0, y=0, width=100, height=100, remaining=total;
+  for (const [index,group] of visible.entries()) {
+    const block=el('span','activity-mosaic-block');
+    block.style.setProperty('--tile-color',`var(--activity-${group.tone})`);
+    const fraction=group.time/remaining;
+    const vertical=index%2===0;
+    const blockWidth=vertical?width*fraction:width;
+    const blockHeight=vertical?height:height*fraction;
+    Object.assign(block.style,{left:x+'%',top:y+'%',width:blockWidth+'%',height:blockHeight+'%'});
+    mosaic.append(block);
+    if (vertical) { x+=blockWidth; width-=blockWidth; }
+    else { y+=blockHeight; height-=blockHeight; }
+    remaining-=group.time;
   }
-  const center=state.clock.activityCenter;
-  const source=clockActivityImages[center];
-  const content=isArc?el('span','activity-arc-center'):ring;
+  const source=clockActivityImages[state.clock.activityCenter];
   if (source) {
     const image=el('img','activity-center-image');
-    image.dataset.center=center;
+    image.dataset.center=state.clock.activityCenter;
     image.src=source;
     image.alt='';
     image.draggable=false;
-    content.append(image);
+    mosaic.append(image);
   }
-  if (isArc) {
-    content.append(el('span','activity-arc-value',value.replace(/(\d) /g,'$1\u00a0')));
-    ring.append(content);
-  }
-  return ring;
+  return mosaic;
 }
 
 const activityPeriods = [
@@ -267,7 +261,7 @@ function paintActivity(button) {
   const {groups,total}=activityBreakdown(rows || []);
   const value=rows?duration(total):'—';
   const copy=el('span','activity-copy');
-  copy.append(el('strong','',value),el('small','','На сайтах · 24 ч'));
+  copy.append(el('strong','',value),el('small','','на сайтах'));
   button.replaceChildren(activityRing(groups,total,value),copy);
   button.title='Время на сайтах за последние 24 часа · '+value;
   button.setAttribute('aria-label',button.title+'. Открыть категории и сайты');
@@ -355,8 +349,7 @@ document.addEventListener('visibilitychange',()=>{
 setInterval(()=>{if (!document.hidden && board.querySelector('.activity-button')) refreshActivity()},60000);
 function clockFields() {
   selectField('Циферблат',[['digital','Цифровой'],['analog','Стрелочный']],state.clock.face,v=>change(s=>s.clock.face=v));
-  selectField('Центр кольца активности',clockActivityCenters,state.clock.activityCenter,value=>change(s=>s.clock.activityCenter=value));
-  selectField('Стиль кольца активности',clockActivityStyles,state.clock.activityStyle,value=>change(s=>s.clock.activityStyle=value));
+  selectField('Изображение на диаграмме',clockActivityCenters,state.clock.activityCenter,value=>change(s=>s.clock.activityCenter=value));
   const group = el('fieldset','clock-zones');
   group.append(el('legend','','Города для переключения'));
   for (const [zone,name] of Object.entries(clockCities)) {

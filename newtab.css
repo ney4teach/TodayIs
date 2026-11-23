@@ -98,6 +98,11 @@ dialog[data-view="settings"] .cloud-settings {border:0;padding:0}
 }
 .card[data-id=clock] .time {font-size:min(36cqw,65cqh,76px);white-space:nowrap}
 .clock-city {max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:min(13px,17cqh);line-height:1.2;padding:1px 0;border:0;background:transparent;color:var(--muted)}
+.clock-date {font-size:clamp(.7em,6cqw,1em);line-height:1.2;text-transform:capitalize}
+.card[data-id=clock] {container:clock / size}
+@container clock (max-width:260px) or (max-height:100px) {
+  .clock-date {display:none}
+}
 .clock-dial {position:relative;width:min(95cqw,88cqh,104px);aspect-ratio:1;flex:none;border:1px solid var(--line);border-radius:50%;background:repeating-conic-gradient(from -1deg,var(--muted) 0 2deg,transparent 2deg 30deg);isolation:isolate}
 .clock-dial:has(+ .clock-city) {width:min(95cqw,68cqh,104px)}
 .clock-dial::before {content:'';position:absolute;inset:6%;border-radius:50%;background:var(--bg)}
@@ -124,78 +129,40 @@ dialog[data-view="settings"] .cloud-settings {border:0;padding:0}
   --activity-other:#b7acd5;
 }
 body.light :is(.activity-button,dialog[data-view=activity]) {
-  --activity-media:#a84e34;
-  --activity-work:#2f70a6;
-  --activity-social:#247b65;
-  --activity-other:#766297;
+  --activity-media:#e8b09c;
+  --activity-work:#a9c9e5;
+  --activity-social:#a8cfbc;
+  --activity-other:#c7bcdb;
 }
+.activity-mosaic {
+  position:relative;display:block;width:100%;height:100%;min-height:0;
+  border-radius:8px;background:var(--line);overflow:hidden;isolation:isolate;
+}
+.activity-mosaic-block {
+  position:absolute;border:2px solid var(--surface);border-radius:8px;
+  background:var(--tile-color);min-width:0;min-height:0;
+}
+.activity-center-image {
+  position:absolute;inset:50% auto auto 50%;transform:translate(-50%,-50%);
+  display:block;width:45%;height:65%;object-fit:contain;pointer-events:none;
+}
+.activity-center-image[data-center=logo] {width:34%;height:60%;border-radius:20%}
+.card[data-id=clock] .clock-left {width:58%;align-items:flex-start;padding-right:12px}
+.card[data-id=clock] .inside::after {left:58%}
 .activity-button {
-  width:50%;height:100%;border:0;padding:0;background:transparent;
-  container:activity / size;display:grid;place-content:center;justify-items:center;
-  gap:clamp(2px,5cqh,8px);color:var(--ink);
+  width:42%;height:100%;border:0;padding:2px 0 2px 14px;background:transparent;
+  display:flex;flex-direction:column;align-items:stretch;justify-content:center;
+  gap:8px;container:activity / size;color:var(--ink);
 }
 .activity-button:hover {background:var(--field)}
-.activity-button:focus-visible {outline-offset:-4px}
-.activity-ring {
-  position:relative;display:grid;place-items:center;aspect-ratio:1;flex:none;
-  width:min(69cqw,55cqh,82px);border-radius:50%;background:var(--field);
-}
-.activity-ring::before {
-  content:"";position:absolute;inset:0;border-radius:inherit;
-  background:var(--activity-fill,linear-gradient(transparent,transparent)),var(--line);
-  mask:radial-gradient(closest-side,transparent 75%,black 78%);
-}
-.activity-ring[data-style=classic] {
-  --activity-start:-135deg;
-  container-type:inline-size;
-  background:transparent;
-}
-.activity-ring[data-style=classic]::before {
-  background:var(--activity-fill,linear-gradient(transparent,transparent)),
-             conic-gradient(from var(--activity-start),var(--line) 0deg 270deg,transparent 270deg 360deg);
-  mask:radial-gradient(closest-side,transparent 82%,black 85%);
-}
-.activity-arc-center {
-  position:absolute;top:47%;left:13%;width:74%;transform:translateY(-50%);
-  display:grid;justify-items:center;gap:2cqi;text-align:center;
-}
-.activity-arc-center .activity-center-image {width:47%;height:auto}
-.activity-arc-center .activity-center-image[data-center=logo] {width:39%;height:auto}
-.activity-arc-value {
-  font-size:min(1em,16cqi);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;
-  text-wrap:balance;
-}
-.activity-ring[data-style=glow] {
-  background:radial-gradient(circle closest-side, #fff3c7 0%, #ffd577 32%, #ee9848 62%, #7b412e 100%);
-}
-body.light .activity-ring[data-style=glow] {
-  background:radial-gradient(circle closest-side, #fff8d9 0%, #ffda85 32%, #f5ad57 62%, #d48b58 100%);
-}
-.activity-ring[data-style=dashed]::before {
-  mask:radial-gradient(closest-side,transparent 72%,black 75%),
-       repeating-conic-gradient(from 24deg,black 0deg 9deg,transparent 9deg 15deg);
-  mask-composite:intersect;
-}
-.activity-ring[data-style=dashed]::after {
-  content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none;
-  background:var(--activity-fill,transparent);
-  mask:radial-gradient(closest-side,transparent 70%,black 72% 74%,transparent 76%);
-  opacity:.58;
-}
-.activity-center-image {display:block;width:66%;height:66%;object-fit:contain;pointer-events:none}
-.activity-center-image[data-center=logo] {width:55%;height:55%;border-radius:25%}
-.activity-copy {display:grid;gap:2px;text-align:center;line-height:1.12}
-.activity-copy>small {font-size:min(.8em,13cqw,15cqh);white-space:nowrap}
-.activity-copy>strong {font-size:min(1.2em,16cqw,24cqh);font-variant-numeric:tabular-nums;white-space:nowrap}
-.activity-ring[data-style=classic]+.activity-copy>strong {display:none}
-@container activity (max-height:78px) or (max-width:84px) {
-  .activity-button .activity-arc-value {display:none}
-  .activity-ring[data-style=classic]+.activity-copy>strong {display:block}
-}
-@container activity (min-width:152px) and (min-height:42px) {
-  .activity-ring {width:min(36cqw,76cqh,82px)}
-  .activity-button > .activity-ring {grid-column:1}
-  .activity-copy {grid-column:2;grid-row:1;align-self:center;text-align:left}
+.activity-button:focus-visible {outline-offset:-3px}
+.activity-button .activity-mosaic {height:min(55cqh,80px);flex:none}
+.activity-copy {display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;text-align:left;line-height:1.2;order:-1}
+.activity-copy>strong {font-size:clamp(.8em,12cqw,1.35em);font-variant-numeric:tabular-nums}
+.activity-copy>small {font-size:.8em}
+@container activity (max-height:75px) or (max-width:75px) {
+  .activity-copy {display:none}
+  .activity-button .activity-mosaic {height:min(90cqh,55px)}
 }
 dialog[data-view=activity] {width:min(460px,94vw)}
 .activity-periods {
@@ -209,11 +176,7 @@ dialog[data-view=activity] {width:min(460px,94vw)}
 }
 .activity-report {display:grid;gap:8px}
 .activity-summary {display:flex;align-items:center;gap:16px;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--field)}
-.activity-summary .activity-ring {width:clamp(46px,16vw,76px)}
-.activity-summary .activity-ring[data-style=classic] {width:clamp(64px,19vw,104px)}
-.activity-summary:has(.activity-ring[data-style=classic]) .activity-summary-copy>strong {
-  position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;
-}
+.activity-summary .activity-mosaic {width:88px;height:66px;flex:none}
 .activity-summary strong {display:block;font-size:clamp(1.25em,5vw,2.25em);line-height:1.15;font-variant-numeric:tabular-nums}
 .activity-note {margin:2px 0;padding-inline:4px}
 .activity-key {display:flex;align-items:center;gap:7px;min-width:0}
