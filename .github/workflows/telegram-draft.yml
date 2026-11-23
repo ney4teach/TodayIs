@@ -11,7 +11,7 @@ on:
         description: Короткое описание для подписчиков, если нужно заменить текст из GitHub
         type: string
       image_url:
-        description: Прямая HTTPS-ссылка на скриншот (необязательно)
+        description: Скриншот из PR или релиза можно заменить прямой HTTPS-ссылкой
         type: string
 
 permissions:
@@ -54,21 +54,36 @@ jobs:
             if (!response.ok) throw new Error('GitHub не вернул источник. HTTP ' + response.status);
             const sourceData = await response.json();
             const title = (sourceData.title || sourceData.name || sourceData.tag_name).trim();
-            const summary = POST_SUMMARY.trim() || sourceData.body?.trim();
-            if (!summary) throw new Error('В источнике нет описания. Заполните поле summary.');
-
-            const image = IMAGE_URL.trim();
+            const body = (sourceData.body || '').replace(/<!--[\s\S]*?-->/g, '');
+            const images = /!\[[^\]\n]*\]\((https:\/\/[^)\s]+)[^)\n]*\)|<img\b[^>]*\bsrc=["'](https:\/\/[^"'\s]+)["'][^>]*>/gi;
+            const screenshot = [...body.matchAll(images)]
+              .map((match) => match[1] || match[2])
+              .find((url) => /^https:\/\/(?:github\.com\/user-attachments\/assets\/|user-images\.githubusercontent\.com\/)/i.test(url) ||
+                /\.(?:png|jpe?g|webp)(?:[?#].*)?$/i.test(url));
+            const image = IMAGE_URL.trim() || screenshot;
             if (image && !/^https:\/\/[^\s]+$/i.test(image)) {
               throw new Error('Для скриншота нужна прямая HTTPS-ссылка.');
             }
 
-            const text = ['Черновик для Today Is', title, summary, sourceData.html_url].join('\n\n');
-            if (text.length > (image ? 1024 : 4096)) {
+            const cleanBody = body.replace(images, '');
+            const notes = /^#{1,6}\s+(?:для подписчиков|что изменилось|summary|changes)\s*\r?$\n([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/im.exec(cleanBody)?.[1];
+            const intro = cleanBody.split(/^#{1,6}\s/m)[0];
+            const summary = (POST_SUMMARY.trim() || notes?.trim() || intro)
+              .replace(/^\s*[-*][ \t]+/gm, '• ')
+              .replace(/\[([^\]\n]+)\]\(https?:\/\/[^)\n]+\)/g, '$1')
+              .replace(/https?:\/\/\S+/g, '')
+              .replace(/\*\*|__|\x60/g, '').trim();
+
+            const heading = '✨ ' + title;
+            if ([heading, summary].join('\n\n').length > (image ? 1024 : 4096)) {
               throw new Error('Черновик слишком длинный. Сократите его через поле summary.');
             }
+            const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const text = '<b>' + escape(heading) + '</b>' + (summary ? '\n\n' + escape(summary) : '');
+            const common = { chat_id: CHAT_ID, parse_mode: 'HTML' };
             const payload = image
-              ? { chat_id: CHAT_ID, photo: image, caption: text }
-              : { chat_id: CHAT_ID, text, link_preview_options: { is_disabled: true } };
+              ? { ...common, photo: image, caption: text }
+              : { ...common, text, link_preview_options: { is_disabled: true } };
 
             let telegram;
             try {
