@@ -117,15 +117,74 @@ dialog[data-view="settings"] .cloud-settings {border:0;padding:0}
   width:1px; height:min(36%,44px); border-radius:1px;
   background:var(--muted); opacity:.38; pointer-events:none;
 }
-.activity-button {width:50%;height:100%;border:0;padding:0;background:transparent;display:grid;place-items:center;container-type:size}
+.activity-button, dialog[data-view=activity] {
+  --activity-media:#f0a185;
+  --activity-work:#91c9ff;
+  --activity-social:#79d6b6;
+  --activity-other:#b7acd5;
+}
+body.light :is(.activity-button,dialog[data-view=activity]) {
+  --activity-media:#a84e34;
+  --activity-work:#2f70a6;
+  --activity-social:#247b65;
+  --activity-other:#766297;
+}
+.activity-button {
+  width:50%;height:100%;border:0;padding:0;background:transparent;
+  container:activity / size;display:grid;place-content:center;justify-items:center;
+  gap:clamp(2px,5cqh,8px);color:var(--ink);
+}
+.activity-button:hover {background:var(--field)}
 .activity-button:focus-visible {outline-offset:-4px}
-.activity-ring {width:min(85cqw,84cqh,128px);aspect-ratio:1;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1.2}
-.activity-ring::before {content:'';position:absolute;inset:0;border-radius:50%;background:var(--activity-fill);mask:radial-gradient(closest-side,transparent 78%,black 80%)}
-.activity-ring strong {font-size:min(15cqw,15cqh,19px);font-variant-numeric:tabular-nums}
-.activity-ring small {font-size:min(12cqw,11cqh,12px)}
-.activity-row {display:grid;grid-template-columns:8px 1fr auto;align-items:center;gap:10px}
-.activity-row i {height:8px;border-radius:50%}
-.activity-row span {overflow-wrap:anywhere}
+.activity-ring {
+  position:relative;display:grid;place-items:center;aspect-ratio:1;flex:none;
+  width:min(69cqw,55cqh,82px);border-radius:50%;background:var(--field);
+}
+.activity-ring::before {
+  content:"";position:absolute;inset:0;border-radius:inherit;
+  background:var(--activity-fill,linear-gradient(transparent,transparent)),var(--line);
+  mask:radial-gradient(closest-side,transparent 75%,black 78%);
+}
+.activity-mark {display:flex;align-items:end;justify-content:center;gap:6%;width:44%;height:39%;color:var(--muted)}
+.activity-mark i {width:20%;height:36%;background:currentColor;border-radius:1px}
+.activity-mark i:nth-child(2) {height:64%}
+.activity-mark i:nth-child(3) {height:100%}
+.activity-copy {display:grid;gap:2px;text-align:center;line-height:1.12}
+.activity-copy>small {font-size:min(.8em,13cqw,15cqh);white-space:nowrap}
+.activity-copy>strong {font-size:min(1.2em,16cqw,24cqh);font-variant-numeric:tabular-nums;white-space:nowrap}
+@container activity (min-width:152px) and (min-height:42px) {
+  .activity-ring {width:min(36cqw,76cqh,82px)}
+  .activity-button > .activity-ring {grid-column:1}
+  .activity-copy {grid-column:2;grid-row:1;align-self:center;text-align:left}
+}
+dialog[data-view=activity] {width:min(460px,94vw)}
+.activity-periods {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;
+  padding:4px;border:1px solid var(--line);border-radius:14px;background:var(--field);
+}
+.activity-periods button {background:transparent;border-color:transparent;padding-inline:3px;color:var(--muted)}
+.activity-periods button[aria-pressed=true] {
+  border-color:color-mix(in srgb,var(--accent) 34%,var(--line));
+  background:color-mix(in srgb,var(--accent) 14%,var(--glass));color:var(--ink);font-weight:600;
+}
+.activity-report {display:grid;gap:8px}
+.activity-summary {display:flex;align-items:center;gap:16px;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--field)}
+.activity-summary .activity-ring {width:clamp(46px,16vw,76px)}
+.activity-summary strong {display:block;font-size:clamp(1.25em,5vw,2.25em);line-height:1.15;font-variant-numeric:tabular-nums}
+.activity-note {margin:2px 0;padding-inline:4px}
+.activity-key {display:flex;align-items:center;gap:7px;min-width:0}
+.activity-key::before {content:"";width:4px;height:1.1em;border-radius:2px;background:var(--arc);flex:none}
+.activity-group {border:1px solid var(--line);border-radius:11px}
+.activity-heading {display:grid;grid-template-columns:minmax(0,1fr) auto auto 8px;align-items:center;gap:8px;list-style:none;min-height:38px;padding:6px 9px;cursor:pointer}
+.activity-heading::-webkit-details-marker {display:none}
+.activity-heading:focus-visible {outline:2px solid var(--soft);outline-offset:-2px;border-radius:10px}
+.activity-heading strong,.activity-heading small {white-space:nowrap;font-variant-numeric:tabular-nums}
+.activity-heading small {min-width:3em;text-align:right}
+.activity-heading::after {content:"";width:6px;height:6px;border:solid var(--muted);border-width:0 1px 1px 0;transform:rotate(45deg)}
+details[open]>.activity-heading::after {transform:rotate(225deg)}
+.activity-site {display:flex;justify-content:space-between;gap:12px;padding:5px 12px;color:var(--muted);font-size:.93em}
+.activity-site span:first-child {overflow-wrap:anywhere}
+.activity-site span:last-child {white-space:nowrap}
 
 .card[data-id="bookmarks"] .cap > span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
 .card[data-id="bookmarks"] .cap > button:first-child { margin-left:0; font-size:20px }
