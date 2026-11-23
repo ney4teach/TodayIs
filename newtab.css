@@ -145,6 +145,26 @@ body.light :is(.activity-button,dialog[data-view=activity]) {
   background:var(--activity-fill,linear-gradient(transparent,transparent)),var(--line);
   mask:radial-gradient(closest-side,transparent 75%,black 78%);
 }
+.activity-ring[data-style=classic] {
+  --activity-start:-135deg;
+  container-type:inline-size;
+  background:transparent;
+}
+.activity-ring[data-style=classic]::before {
+  background:var(--activity-fill,linear-gradient(transparent,transparent)),
+             conic-gradient(from var(--activity-start),var(--line) 0deg 270deg,transparent 270deg 360deg);
+  mask:radial-gradient(closest-side,transparent 82%,black 85%);
+}
+.activity-arc-center {
+  position:absolute;top:47%;left:13%;width:74%;transform:translateY(-50%);
+  display:grid;justify-items:center;gap:2cqi;text-align:center;
+}
+.activity-arc-center .activity-center-image {width:47%;height:auto}
+.activity-arc-center .activity-center-image[data-center=logo] {width:39%;height:auto}
+.activity-arc-value {
+  font-size:min(1em,16cqi);font-weight:700;line-height:1.1;font-variant-numeric:tabular-nums;
+  text-wrap:balance;
+}
 .activity-ring[data-style=glow] {
   background:radial-gradient(circle closest-side, #fff3c7 0%, #ffd577 32%, #ee9848 62%, #7b412e 100%);
 }
@@ -167,6 +187,11 @@ body.light .activity-ring[data-style=glow] {
 .activity-copy {display:grid;gap:2px;text-align:center;line-height:1.12}
 .activity-copy>small {font-size:min(.8em,13cqw,15cqh);white-space:nowrap}
 .activity-copy>strong {font-size:min(1.2em,16cqw,24cqh);font-variant-numeric:tabular-nums;white-space:nowrap}
+.activity-ring[data-style=classic]+.activity-copy>strong {display:none}
+@container activity (max-height:78px) or (max-width:84px) {
+  .activity-button .activity-arc-value {display:none}
+  .activity-ring[data-style=classic]+.activity-copy>strong {display:block}
+}
 @container activity (min-width:152px) and (min-height:42px) {
   .activity-ring {width:min(36cqw,76cqh,82px)}
   .activity-button > .activity-ring {grid-column:1}
@@ -185,6 +210,10 @@ dialog[data-view=activity] {width:min(460px,94vw)}
 .activity-report {display:grid;gap:8px}
 .activity-summary {display:flex;align-items:center;gap:16px;padding:12px;border:1px solid var(--line);border-radius:16px;background:var(--field)}
 .activity-summary .activity-ring {width:clamp(46px,16vw,76px)}
+.activity-summary .activity-ring[data-style=classic] {width:clamp(64px,19vw,104px)}
+.activity-summary:has(.activity-ring[data-style=classic]) .activity-summary-copy>strong {
+  position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;
+}
 .activity-summary strong {display:block;font-size:clamp(1.25em,5vw,2.25em);line-height:1.15;font-variant-numeric:tabular-nums}
 .activity-note {margin:2px 0;padding-inline:4px}
 .activity-key {display:flex;align-items:center;gap:7px;min-width:0}

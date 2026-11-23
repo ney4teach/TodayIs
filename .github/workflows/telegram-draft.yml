@@ -98,18 +98,18 @@ jobs:
             await page.locator('#dock button').last().click();
             await page.locator('[data-page="widgets"]').click();
             await page.locator('[data-page="clock"]').click();
-            const ringStyle = page.locator('#fields select').filter({has: page.locator('option[value="glow"]')});
-            await ringStyle.selectOption('glow');
+            const ringStyle = page.locator('#fields select').filter({has: page.locator('option[value="classic"]')});
+            await ringStyle.selectOption('classic');
             await page.locator('#dialog #close').click();
-            await page.locator('.activity-button .activity-ring[data-style="glow"]').waitFor();
+            await page.locator('.activity-button .activity-ring[data-style="classic"]').waitFor();
             await page.locator('.activity-button').click();
             const dialog = page.locator('#dialog');
-            const total = dialog.locator('.activity-summary strong');
-            await total.filter({hasText: /^1 ч 22 мин$/}).waitFor();
+            const total = dialog.locator('.activity-arc-value');
+            await total.filter({hasText: /^1\sч 22\sмин$/}).waitFor();
             await dialog.getByRole('button', {name: 'Месяц', exact: true}).click();
-            await total.filter({hasText: /^10 ч 45 мин$/}).waitFor();
+            await total.filter({hasText: /^10\sч 45\sмин$/}).waitFor();
             await dialog.getByRole('button', {name: '7 дней', exact: true}).click();
-            await total.filter({hasText: /^8 ч 55 мин$/}).waitFor();
+            await total.filter({hasText: /^8\sч 55\sмин$/}).waitFor();
             await dialog.locator('summary').filter({hasText: 'Работа и учёба'}).click();
             await dialog.getByText('github.com', {exact: true}).waitFor();
             await page.screenshot({

@@ -27,7 +27,7 @@ const clockCities = {
   'Europe/Paris':'Париж', 'Asia/Dubai':'Дубай', 'Asia/Tokyo':'Токио', 'America/New_York':'Нью-Йорк'
 };
 const clockActivityCenters = [['mascot','Маскот'],['logo','Логотип'],['none','Пустой центр']];
-const clockActivityStyles = [['classic','Кольцо'],['glow','Градиент'],['dashed','Штрихи']];
+const clockActivityStyles = [['classic','Дуга 270°'],['glow','Градиент'],['dashed','Штрихи']];
 const clockActivityImages = {mascot:'icons/clock-mascot.webp',logo:'icons/clock-logo.webp'};
 function clockOptions(raw = {}) {
   const cities = ['local', ...Object.keys(clockCities).filter(zone => zone !== 'local' && Array.isArray(raw?.cities) && raw.cities.includes(zone))];
@@ -213,32 +213,39 @@ function activityBreakdown(rows) {
   return {groups,total};
 }
 
-function activityRing(groups,total) {
+function activityRing(groups,total,value) {
   const ring=el('span','activity-ring');
   ring.setAttribute('aria-hidden','true');
   ring.dataset.style=state.clock.activityStyle;
+  const isArc=state.clock.activityStyle==='classic';
+  const range=isArc?270:360;
   const visible=groups.filter(group=>group.time>0);
   if (visible.length) {
     let angle=0;
     const stops=visible.flatMap((group,index)=>{
-      const sweep=360*group.time/total;
-      const end=index===visible.length-1?360:angle+sweep;
+      const sweep=range*group.time/total;
+      const end=index===visible.length-1?range:angle+sweep;
       const gap=visible.length>1?Math.min(1.75,(end-angle)/4):0;
       const segment=[`transparent ${angle}deg ${angle+gap}deg`,`var(--activity-${group.tone}) ${angle+gap}deg ${end-gap}deg`,`transparent ${end-gap}deg ${end}deg`];
       angle=end;
       return segment;
     });
-    ring.style.setProperty('--activity-fill',`conic-gradient(from 24deg,${stops.join(',')})`);
+    ring.style.setProperty('--activity-fill',`conic-gradient(from var(--activity-start,24deg),${stops.join(',')},transparent ${range}deg 360deg)`);
   }
   const center=state.clock.activityCenter;
   const source=clockActivityImages[center];
+  const content=isArc?el('span','activity-arc-center'):ring;
   if (source) {
     const image=el('img','activity-center-image');
     image.dataset.center=center;
     image.src=source;
     image.alt='';
     image.draggable=false;
-    ring.append(image);
+    content.append(image);
+  }
+  if (isArc) {
+    content.append(el('span','activity-arc-value',value.replace(/(\d) /g,'$1\u00a0')));
+    ring.append(content);
   }
   return ring;
 }
@@ -261,7 +268,7 @@ function paintActivity(button) {
   const value=rows?duration(total):'—';
   const copy=el('span','activity-copy');
   copy.append(el('strong','',value),el('small','','На сайтах · 24 ч'));
-  button.replaceChildren(activityRing(groups,total),copy);
+  button.replaceChildren(activityRing(groups,total,value),copy);
   button.title='Время на сайтах за последние 24 часа · '+value;
   button.setAttribute('aria-label',button.title+'. Открыть категории и сайты');
 }
@@ -294,10 +301,11 @@ function paintActivityReport() {
     control.setAttribute('aria-pressed',String(Number(control.dataset.days)===activityPeriod));
   }
   const [, , label]=activityPeriods.find(([days])=>days===activityPeriod);
-  const hero=el('div','activity-summary'), copy=el('div');
+  const hero=el('div','activity-summary'), copy=el('div','activity-summary-copy');
+  const value=rows?duration(total):'—';
   copy.setAttribute('aria-live','polite');
-  copy.append(el('small','',label),el('strong','',rows?duration(total):'—'));
-  hero.append(activityRing(groups,total),copy);
+  copy.append(el('small','',label),el('strong','',value));
+  hero.append(activityRing(groups,total,value),copy);
   report.replaceChildren(hero);
   if (rows && activityPeriod>1 && activityData.now-activityData.since<activityPeriod*86400000) {
     const since=new Date(activityData.since).toLocaleDateString('ru-RU',{day:'numeric',month:'long',year:'numeric'});
