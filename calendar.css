@@ -12,7 +12,11 @@ button.calendar-day, .calendar-preview-day, .calendar-swatch {
 }
 button.calendar-day:hover {background:color-mix(in srgb,var(--shift,var(--accent)) 36%,var(--field))}
 button.calendar-day[aria-pressed=true] {box-shadow:inset 0 0 0 1px var(--soft)}
-button.calendar-day[aria-current=date]>span {font-weight:700;text-decoration:underline;text-underline-offset:2px}
+button.calendar-day[aria-current=date] {
+  box-shadow:inset 0 0 0 2px var(--ink);
+  font-weight:800
+}
+button.calendar-day[aria-current=date]:focus-visible {outline-offset:1px}
 button.calendar-day:focus-visible {outline-offset:-2px}
 .calendar-widget,dialog[data-view^=calendar] {--extra-shift:#ff9dc2}
 .light :is(.calendar-widget,dialog[data-view^=calendar]) {--extra-shift:#9b2558}
