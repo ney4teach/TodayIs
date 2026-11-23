@@ -145,10 +145,8 @@ body.light :is(.activity-button,dialog[data-view=activity]) {
   background:var(--activity-fill,linear-gradient(transparent,transparent)),var(--line);
   mask:radial-gradient(closest-side,transparent 75%,black 78%);
 }
-.activity-mark {display:flex;align-items:end;justify-content:center;gap:6%;width:44%;height:39%;color:var(--muted)}
-.activity-mark i {width:20%;height:36%;background:currentColor;border-radius:1px}
-.activity-mark i:nth-child(2) {height:64%}
-.activity-mark i:nth-child(3) {height:100%}
+.activity-center-image {display:block;width:66%;height:66%;object-fit:contain;pointer-events:none}
+.activity-center-image[data-center=logo] {width:55%;height:55%;border-radius:25%}
 .activity-copy {display:grid;gap:2px;text-align:center;line-height:1.12}
 .activity-copy>small {font-size:min(.8em,13cqw,15cqh);white-space:nowrap}
 .activity-copy>strong {font-size:min(1.2em,16cqw,24cqh);font-variant-numeric:tabular-nums;white-space:nowrap}

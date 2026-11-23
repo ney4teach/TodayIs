@@ -26,9 +26,16 @@ const clockCities = {
   'Asia/Irkutsk':'Иркутск', 'Asia/Vladivostok':'Владивосток', 'Europe/London':'Лондон',
   'Europe/Paris':'Париж', 'Asia/Dubai':'Дубай', 'Asia/Tokyo':'Токио', 'America/New_York':'Нью-Йорк'
 };
+const clockActivityCenters = [['mascot','Маскот'],['logo','Логотип'],['none','Пустой центр']];
+const clockActivityImages = {mascot:'icons/clock-mascot.webp',logo:'icons/clock-logo.webp'};
 function clockOptions(raw = {}) {
   const cities = ['local', ...Object.keys(clockCities).filter(zone => zone !== 'local' && Array.isArray(raw?.cities) && raw.cities.includes(zone))];
-  return {face:one(raw?.face,['digital','analog'],'digital'), cities, zone:one(raw?.zone,cities,'local')};
+  return {
+    face:one(raw?.face,['digital','analog'],'digital'),
+    cities,
+    zone:one(raw?.zone,cities,'local'),
+    activityCenter:one(raw?.activityCenter,clockActivityCenters.map(([value])=>value),'mascot')
+  };
 }
 const widgetScaleRange = {min:60, max:100, step:5};
 
@@ -220,9 +227,16 @@ function activityRing(groups,total) {
     });
     ring.style.setProperty('--activity-fill',`conic-gradient(from 24deg,${stops.join(',')})`);
   }
-  const mark=el('span','activity-mark');
-  mark.append(el('i'),el('i'),el('i'));
-  ring.append(mark);
+  const center=state.clock.activityCenter;
+  const source=clockActivityImages[center];
+  if (source) {
+    const image=el('img','activity-center-image');
+    image.dataset.center=center;
+    image.src=source;
+    image.alt='';
+    image.draggable=false;
+    ring.append(image);
+  }
   return ring;
 }
 
@@ -330,6 +344,7 @@ document.addEventListener('visibilitychange',()=>{
 setInterval(()=>{if (!document.hidden && board.querySelector('.activity-button')) refreshActivity()},60000);
 function clockFields() {
   selectField('Циферблат',[['digital','Цифровой'],['analog','Стрелочный']],state.clock.face,v=>change(s=>s.clock.face=v));
+  selectField('Центр кольца активности',clockActivityCenters,state.clock.activityCenter,value=>change(s=>s.clock.activityCenter=value));
   const group = el('fieldset','clock-zones');
   group.append(el('legend','','Города для переключения'));
   for (const [zone,name] of Object.entries(clockCities)) {
