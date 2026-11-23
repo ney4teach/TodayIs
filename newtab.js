@@ -252,6 +252,105 @@ function clockFields() {
   fields.append(group);
 }
 
+
+function addSearchHistory(form, query) {
+  const key = 'todayis.searchHistory';
+  function read() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(key));
+      return Array.isArray(saved) ? saved.filter(item => typeof item === 'string' && item.trim()).slice(0, 20) : [];
+    } catch {
+      return [];
+    }
+  }
+  function save(items) {
+    try {
+      if (items.length) localStorage.setItem(key, JSON.stringify(items));
+      else localStorage.removeItem(key);
+    } catch {
+      // Searching remains available when local storage is blocked.
+    }
+  }
+
+  const trigger = el('button', 'search-history-trigger');
+  trigger.type = 'button';
+  trigger.title = 'История поиска';
+  trigger.setAttribute('aria-label', 'История поиска');
+  trigger.append(icon('clock'));
+
+  const panel = el('section', 'search-history-panel');
+  panel.setAttribute('popover', 'auto');
+  panel.setAttribute('aria-label', 'История поиска');
+  trigger.popoverTargetElement = panel;
+
+  function render() {
+    const items = read();
+    const header = el('header', 'search-history-header');
+    header.append(el('strong', '', 'История поиска'));
+    if (items.length) {
+      const clear = el('button', '', 'Очистить');
+      clear.type = 'button';
+      clear.onclick = () => {
+        save([]);
+        render();
+        panel.focus();
+      };
+      header.append(clear);
+    }
+    panel.replaceChildren(header);
+    if (!items.length) {
+      panel.append(el('p', 'search-history-empty', 'Здесь появятся отправленные запросы'));
+      return;
+    }
+    const list = el('ul', 'search-history-list');
+    for (const item of items) {
+      const row = el('li');
+      const reuse = el('button', 'search-history-query', item);
+      reuse.type = 'button';
+      reuse.title = item;
+      reuse.onclick = () => {
+        query.value = item;
+        panel.hidePopover();
+        query.focus();
+      };
+      const remove = el('button', 'search-history-remove', '×');
+      remove.type = 'button';
+      remove.title = 'Удалить запрос';
+      remove.setAttribute('aria-label', 'Удалить запрос: ' + item);
+      remove.onclick = () => {
+        save(read().filter(value => value !== item));
+        render();
+        (panel.querySelector('.search-history-remove') || panel).focus();
+      };
+      row.append(reuse, remove);
+      list.append(row);
+    }
+    panel.append(list);
+  }
+
+  panel.tabIndex = -1;
+  panel.addEventListener('beforetoggle', event => {
+    if (event.newState !== 'open') return;
+    render();
+    const rect = form.getBoundingClientRect();
+    const width = Math.min(Math.max(rect.width, 260), 420, window.innerWidth - 16);
+    const left = Math.min(Math.max(rect.left, 8), window.innerWidth - width - 8);
+    const below = window.innerHeight - rect.bottom;
+    const above = rect.top;
+    const openAbove = below < 240 && above > below;
+    panel.style.width = width + 'px';
+    panel.style.left = left + 'px';
+    panel.style.top = openAbove ? 'auto' : (rect.bottom + 6) + 'px';
+    panel.style.bottom = openAbove ? (window.innerHeight - rect.top + 6) + 'px' : 'auto';
+    panel.style.maxHeight = Math.min(320, Math.max(0, (openAbove ? above : below) - 14)) + 'px';
+  });
+  form.addEventListener('submit', () => {
+    const value = query.value.trim();
+    if (value) save([value, ...read().filter(item => item !== value)].slice(0, 20));
+  });
+  return {trigger, panel};
+}
+
 function renderSearch(container) {
   const form = el('form', 'search-bar');
   form.setAttribute('role', 'search');
@@ -345,13 +444,14 @@ function renderSearch(container) {
     }
   });
 
+  const {trigger, panel} = addSearchHistory(form, query);
   form.addEventListener('submit', event => {
     event.preventDefault();
     const value = query.value.trim();
     if (value) location.assign(engines[engine.value] + encodeURIComponent(value));
     else query.focus();
   });
-  form.append(picker, query, mic, submit);
+  form.append(picker, query, trigger, mic, submit, panel);
   container.append(form, status);
 }
 
