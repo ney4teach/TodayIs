@@ -72,7 +72,10 @@ jobs:
             : /(?:^|\/)wallpaper[-/]accent(?:[-/]|$)/i.test(branch) ? 'wallpaper-accent'
             : 'new-tab';
           const requested = process.env.SCREENSHOT;
-          const scenario = ['new-tab', 'search', 'calendar', 'wallpaper-accent'].includes(requested) ? requested : inferred;
+          const supported = ['new-tab', 'search', 'calendar', 'wallpaper-accent'];
+          const declared = /<!--\s*telegram-screenshot:\s*([\w-]+)\s*-->/i.exec(data.body || '')?.[1];
+          if (declared && !supported.includes(declared)) throw new Error('Неизвестный сценарий Telegram: ' + declared);
+          const scenario = supported.includes(requested) ? requested : (declared || inferred);
           appendFileSync(process.env.GITHUB_OUTPUT, 'ref=' + ref + '\nscenario=' + scenario + '\n');
           NODE
       - uses: actions/checkout@v4
@@ -115,19 +118,40 @@ jobs:
 
             if (scenario === 'search') {
               const form = page.locator('.search-bar');
-              const picker = form.locator('.search-picker select');
-              await picker.selectOption({ label: 'Яндекс' });
-              await form.locator('input[type="search"][placeholder="Поиск в Яндекс"]').waitFor();
-              await form.locator('.search-mic').waitFor({ state: 'visible' });
-              await form.scrollIntoViewIfNeeded();
-              await page.screenshot({
-                path: 'todayis-preview.png',
+              const query = form.locator('input[type="search"]');
+              const style = [
+                '#board > [data-id]:not([data-id="search"]) { filter: blur(5px) brightness(.65); }',
+                '#board > [data-id="search"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
+              ];
+              const capture = (number, emphasis) => page.screenshot({
+                path: 'todayis-preview-0' + number + '.png',
                 animations: 'disabled',
-                style: [
-                  '#board [data-id]:not([data-id="search"]) { filter: blur(3px) brightness(.78); }',
-                  '#board [data-id="search"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
-                ].join('\n'),
+                style: [...style, emphasis + ' { outline: 2px solid var(--accent, #a89cff); outline-offset: 3px; }'].join('\n'),
               });
+              await page.evaluate(async () => {
+                localStorage.setItem('todayis.searchHistory', JSON.stringify([
+                  'Дизайн стартовой страницы браузера: доступность, удобная навигация и полезные виджеты для работы',
+                  'Дизайн интерфейсов',
+                ]));
+                await chrome.bookmarks.create({ title: 'Дизайн — справочник MDN', url: 'https://developer.mozilla.org/' });
+                await bookmarks();
+              });
+              await page.waitForFunction(() => bookmarkSites.some((site) => site.title === 'Дизайн — справочник MDN'));
+              await form.locator('.search-history-trigger').click();
+              await form.locator('.search-history-query').first().waitFor();
+              await capture(1, 'section.search-history-panel:popover-open');
+              await page.keyboard.press('Escape');
+
+              await query.fill('Дизайн');
+              const suggestions = form.locator('.search-suggestions');
+              await suggestions.getByText('Закладка', { exact: true }).waitFor();
+              await query.press('ArrowDown');
+              await suggestions.locator('[aria-selected="true"]').waitFor();
+              await capture(2, '.search-suggestions:popover-open');
+
+              await query.fill('developer.mozilla.org');
+              await query.press('Escape');
+              await capture(3, '.search-bar input[type="search"]');
             } else if (scenario === 'calendar') {
               const dialog = page.locator('#dialog');
               const calendar = page.locator('#board [data-id="calendar"]');
@@ -307,13 +331,22 @@ jobs:
               .replace(/https?:\/\/\S+/g, '')
               .replace(/\x60/g, '').trim();
 
+            const points = summary
+              .split(/\n(?=• )|\n[ \t]*\n/)
+              .map((point) => point.replace(/^• /, '').replace(/\s*\n\s*/g, ' ').trim())
+              .filter(Boolean);
+            if (points.length !== frames.length) {
+              throw new Error('Пунктов в анонсе: ' + points.length + ', кадров: ' + frames.length +
+                '. Подготовьте по одному кадру на пункт и сохраните одинаковый порядок.');
+            }
+            const bullets = points.map((point) => '• ' + point).join('\n');
             const heading = '✨ ' + postTitle(title);
-            if ([heading, summary.replace(/\*\*|__/g, '')].join('\n\n').length > 1024) {
+            if ([heading, bullets.replace(/\*\*|__/g, '')].join('\n\n').length > 1024) {
               throw new Error('Черновик слишком длинный. Сократите его через поле summary.');
             }
             const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
             const emphasis = /(\*\*|__)(\S(?:.*?\S)?)\1/g;
-            const formattedSummary = summary.split('\n').map((line) => {
+            const formattedSummary = bullets.split('\n').map((line) => {
               const escaped = escape(line);
               const highlighted = escaped.replace(emphasis, '<b>$2</b>');
               if (highlighted !== escaped || !line.startsWith('• ')) return highlighted;
@@ -321,7 +354,7 @@ jobs:
               if (!firstSentence) return highlighted;
               return '• <b>' + escape(firstSentence[1]) + '</b>' + escape(line.slice(firstSentence[0].length));
             }).join('\n');
-            const text = '<b>' + escape(heading) + '</b>' + (summary ? '\n\n' + formattedSummary : '');
+            const text = '<b>' + escape(heading) + '</b>' + '\n\n' + formattedSummary;
             const form = new FormData();
             form.set('chat_id', chatId);
             const album = frames.length > 1;
