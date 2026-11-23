@@ -242,7 +242,8 @@ function activityRing(groups,total) {
     if (state.clock.activityCenter==='mascot') {
       const peek=el('span','activity-peek');
       peek.append(image);
-      mosaic.append(peek);
+      const largest=mosaic.querySelector('.activity-mosaic-block');
+      if (largest) largest.append(peek);
     } else {
       mosaic.append(image);
     }
