@@ -177,7 +177,7 @@ jobs:
               };
               await mosaic.locator('.activity-mosaic-block').first().waitFor();
               await openClockSettings();
-              const center = dialog.getByLabel('Изображение на диаграмме', { exact: true });
+              const center = dialog.locator('select:has(option[value="mascot"])');
               await center.selectOption('mascot');
               await clock.locator('img[data-center="mascot"]').waitFor({ state: 'attached' });
               const modalStyle = '#panel, #dock { filter: blur(6px) brightness(.65); }';
