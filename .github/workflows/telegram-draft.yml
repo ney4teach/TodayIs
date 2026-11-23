@@ -10,15 +10,17 @@ on:
       screenshot:
         description: Сценарий автоматического скриншота
         type: choice
-        default: none
+        default: auto
         options:
-          - none
+          - auto
+          - new-tab
+          - search
           - wallpaper-accent
       summary:
         description: Короткое описание для подписчиков, если нужно заменить текст из GitHub
         type: string
       image_url:
-        description: Скриншот из PR или релиза можно заменить прямой HTTPS-ссылкой
+        description: Прямая HTTPS-ссылка, если нужно заменить автоматический скриншот
         type: string
 
 permissions:
@@ -27,7 +29,7 @@ permissions:
 
 jobs:
   screenshot:
-    if: inputs.screenshot == 'wallpaper-accent' && inputs.image_url == ''
+    if: inputs.image_url == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -36,6 +38,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           SOURCE_URL: ${{ inputs.source }}
+          SCREENSHOT: ${{ inputs.screenshot }}
         run: |
           node --input-type=module <<'NODE'
           const source = /^https:\/\/github\.com\/ney4teach\/TodayIs\/(?:pull\/([1-9]\d*)|releases\/tag\/([^?#\s]+?))\/?$/i
@@ -55,7 +58,13 @@ jobs:
           const ref = source[1] ? data.head.sha : 'refs/tags/' + data.tag_name;
           if (!ref || /\s/.test(ref)) throw new Error('Не удалось определить версию расширения.');
           const { appendFileSync } = await import('node:fs');
-          appendFileSync(process.env.GITHUB_OUTPUT, 'ref=' + ref + '\n');
+          const branch = data.head?.ref || '';
+          const inferred = /(?:^|\/)search(?:[-/]|$)/i.test(branch) ? 'search'
+            : /(?:^|\/)wallpaper[-/]accent(?:[-/]|$)/i.test(branch) ? 'wallpaper-accent'
+            : 'new-tab';
+          const requested = process.env.SCREENSHOT;
+          const scenario = ['new-tab', 'search', 'wallpaper-accent'].includes(requested) ? requested : inferred;
+          appendFileSync(process.env.GITHUB_OUTPUT, 'ref=' + ref + '\nscenario=' + scenario + '\n');
           NODE
       - uses: actions/checkout@v4
         with:
@@ -66,7 +75,9 @@ jobs:
         run: |
           npm install --no-save --no-package-lock playwright@1.58.2
           npx playwright install --with-deps chromium
-      - name: Снять обои и палитру
+      - name: Сделать скриншот Today Is
+        env:
+          SCREENSHOT_SCENARIO: ${{ steps.source.outputs.scenario }}
         run: |
           node --input-type=module <<'NODE'
           import { resolve } from 'node:path';
@@ -86,14 +97,39 @@ jobs:
             const page = await context.newPage();
             page.setDefaultTimeout(15000);
             await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
-            await page.locator('#dock button').last().click();
-            await page.locator('[data-page="appearance"]').click();
-            await page.locator('.wallpaper-file').setInputFiles(resolve(extension, 'wallpapers/aurora.svg'));
-            await page.waitForFunction(() => document.body.style.backgroundImage.includes('data:image/'));
-            await page.locator('#accent-mode').selectOption('manual');
-            await page.locator('.accent-swatch').last().click();
-            await page.locator('.accent-swatch').last().locator('input:checked').waitFor({ state: 'attached' });
-            await page.screenshot({ path: 'todayis-preview.png', animations: 'disabled' });
+            const scenario = process.env.SCREENSHOT_SCENARIO;
+            await page.locator('#board [data-id]').first().waitFor({ state: 'visible' });
+
+            if (scenario === 'search') {
+              const form = page.locator('.search-bar');
+              const picker = form.locator('.search-picker select');
+              await picker.selectOption({ label: 'Яндекс' });
+              await form.locator('input[type="search"][placeholder="Поиск в Яндекс"]').waitFor();
+              await form.locator('.search-mic').waitFor({ state: 'visible' });
+              await form.scrollIntoViewIfNeeded();
+              const box = await form.boundingBox();
+              if (!box) throw new Error('Поисковая строка не видна на странице.');
+              const viewport = page.viewportSize();
+              const x = Math.max(0, Math.floor(box.x) - 24);
+              const y = Math.max(0, Math.floor(box.y) - 24);
+              const right = Math.min(viewport.width, Math.ceil(box.x + box.width) + 24);
+              const bottom = Math.min(viewport.height, Math.ceil(box.y + box.height) + 24);
+              await page.screenshot({
+                path: 'todayis-preview.png', animations: 'disabled',
+                clip: { x, y, width: right - x, height: bottom - y },
+              });
+            } else {
+              if (scenario === 'wallpaper-accent') {
+                await page.locator('#dock button').last().click();
+                await page.locator('[data-page="appearance"]').click();
+                await page.locator('.wallpaper-file').setInputFiles(resolve(extension, 'wallpapers/aurora.svg'));
+                await page.waitForFunction(() => document.body.style.backgroundImage.includes('data:image/'));
+                await page.locator('#accent-mode').selectOption('manual');
+                await page.locator('.accent-swatch').last().click();
+                await page.locator('.accent-swatch').last().locator('input:checked').waitFor({ state: 'attached' });
+              }
+              await page.screenshot({ path: 'todayis-preview.png', animations: 'disabled' });
+            }
           } finally {
             await context.close();
           }
@@ -191,7 +227,7 @@ jobs:
             }
 
             const cleanBody = body.replace(images, '');
-            const notes = /^#{1,6}\s+(?:для подписчиков|что изменилось|summary|changes)\s*\r?$\n([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/im.exec(cleanBody)?.[1];
+            const notes = /^#{1,6}\s+(?:для подписчиков|что изменилось|изменения|что нового|summary|changes)\s*\r?$\n([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/im.exec(cleanBody)?.[1];
             const intro = cleanBody.split(/^#{1,6}[ \t]+/m)[0]
               .split(/\r?\n[ \t]*\r?\n/)
               .filter((paragraph) => !/^(?:в\s+)?(?:\x60?AGENTS\.md\x60?(?=\s|[.,:;]|$)|провер(?:ен[аоы]?|к[аиу])(?=\s|[.,:;]|$)|тесты(?=\s|[.,:;]|$)|git revert(?=\s|[.,:;]|$)|tests?(?=\s|[.,:;]|$)|verification(?=\s|[.,:;]|$))/iu.test(
