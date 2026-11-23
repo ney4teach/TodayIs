@@ -239,7 +239,7 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   outline:none;
 }
 .search-bar input::placeholder {color:var(--muted); opacity:1}
-.search-picker,.search-bar button {
+.search-picker,.search-bar > button {
   flex:none;
   height:clamp(28px, 12cqw, 40px);
   display:flex;
@@ -266,7 +266,7 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 }
 .search-picker:focus-within {outline:2px solid var(--soft); outline-offset:1px}
 .search-picker .ico:last-of-type {width:11px}
-.search-bar button {width:clamp(27px, 12cqw, 40px); padding:0}
+.search-bar > button {width:clamp(27px, 12cqw, 40px); padding:0}
 .search-bar .ico {height:17px; width:17px}
 .search-mic {background:transparent; color:var(--muted)}
 .search-mic:hover,.search-mic[aria-pressed=true] {
@@ -317,15 +317,14 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   flex:1;
   min-width:0;
   text-align:left;
-  overflow:hidden;
-  text-overflow:ellipsis;
-  white-space:nowrap;
+  white-space:normal;
+  overflow-wrap:anywhere;
 }
 .search-history-list button:hover {background:var(--field)}
 .search-history-remove {flex:none; color:var(--muted)}
 .search-history-empty {margin:0; padding:5px 6px; color:var(--muted)}
 @container (max-width:210px) {
-  .search-bar button {width:25px}
+  .search-bar > button {width:25px}
   .search-picker {padding-inline:3px; gap:1px}
 }
 
