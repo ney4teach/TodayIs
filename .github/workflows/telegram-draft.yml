@@ -22,6 +22,7 @@ on:
           - auto
           - new-tab
           - search
+          - activity
           - calendar
           - wallpaper-accent
       summary:
@@ -68,11 +69,12 @@ jobs:
           const { appendFileSync } = await import('node:fs');
           const branch = data.head?.ref || '';
           const inferred = /(?:^|\/)search(?:[-/]|$)/i.test(branch) ? 'search'
+            : /^clock\/activity(?:-|$)/i.test(branch) ? 'activity'
             : /(?:^|\/)calendar(?:[-/]|$)/i.test(branch) ? 'calendar'
             : /(?:^|\/)wallpaper[-/]accent(?:[-/]|$)/i.test(branch) ? 'wallpaper-accent'
             : 'new-tab';
           const requested = process.env.SCREENSHOT;
-          const supported = ['new-tab', 'search', 'calendar', 'wallpaper-accent'];
+          const supported = ['new-tab', 'search', 'activity', 'calendar', 'wallpaper-accent'];
           const declared = /<!--\s*telegram-screenshot:\s*([\w-]+)\s*-->/i.exec(data.body || '')?.[1];
           if (declared && !supported.includes(declared)) throw new Error('Неизвестный сценарий Telegram: ' + declared);
           const scenario = supported.includes(requested) ? requested : (declared || inferred);
@@ -109,9 +111,21 @@ jobs:
           try {
             const worker = context.serviceWorkers()[0] ??
               await context.waitForEvent('serviceworker', { timeout: 15000 });
+            const scenario = process.env.SCREENSHOT_SCENARIO;
+            if (scenario === 'activity') {
+              await worker.evaluate(async () => {
+                const day = 86400000;
+                const now = Date.now();
+                const spans = [
+                  ['reddit.com', 12, 110], ['figma.com', 5, 85], ['t.me', 4, 48],
+                  ['youtube.com', 3, 125], ['github.com', 2, 160], ['open-meteo.com', 1.5, 35],
+                  ['youtube.com', .5, 52], ['github.com', .25, 30],
+                ].map(([host, ago, minutes]) => ({host, start: now - ago * day, end: now - ago * day + minutes * 60000}));
+                await chrome.storage.local.set({siteActivity: {spans, since: now - 30 * day}});
+              });
+            }
             const page = await context.newPage();
             page.setDefaultTimeout(15000);
-            const scenario = process.env.SCREENSHOT_SCENARIO;
             if (scenario === 'calendar') await page.clock.setFixedTime(new Date(2026, 10, 2, 12));
             await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
             await page.locator('#board [data-id]').first().waitFor({ state: 'visible' });
@@ -152,6 +166,42 @@ jobs:
               await query.fill('developer.mozilla.org');
               await query.press('Escape');
               await capture(3, '.search-bar input[type="search"]');
+            } else if (scenario === 'activity') {
+              const dialog = page.locator('#dialog');
+              const clock = page.locator('#board > [data-id="clock"]');
+              const mosaic = clock.locator('.activity-button');
+              const openClockSettings = async () => {
+                await page.locator('#dock button').last().click();
+                await dialog.locator('[data-page="widgets"]').click();
+                await dialog.locator('[data-page="clock"]').click();
+              };
+              await mosaic.locator('.activity-mosaic-block').first().waitFor();
+              await openClockSettings();
+              const center = dialog.getByLabel('Изображение на диаграмме', { exact: true });
+              await center.selectOption('mascot');
+              await clock.locator('img[data-center="mascot"]').waitFor({ state: 'attached' });
+              const modalStyle = '#panel, #dock { filter: blur(6px) brightness(.65); }';
+              await page.screenshot({
+                path: 'todayis-preview-03.png', animations: 'disabled',
+                style: modalStyle + ' #dialog select:has(option[value="mascot"]) { outline: 2px solid var(--accent, #a89cff); }',
+              });
+              await dialog.locator('#close').click();
+              await clock.locator('img[data-center="mascot"]').evaluate((img) => img.decode());
+              await page.screenshot({
+                path: 'todayis-preview-01.png', animations: 'disabled',
+                style: [
+                  '#board > [data-id]:not([data-id="clock"]), #dock { filter: blur(5px) brightness(.65); }',
+                  '#board > [data-id="clock"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
+                ].join('\n'),
+              });
+              await mosaic.click();
+              await dialog.getByRole('button', { name: '7 дней', exact: true }).click();
+              await dialog.locator('summary').filter({ hasText: 'Работа и учёба' }).click();
+              await dialog.getByText('github.com', { exact: true }).waitFor();
+              await page.screenshot({
+                path: 'todayis-preview-02.png', animations: 'disabled',
+                style: modalStyle + ' #dialog details[open] { outline: 2px solid var(--accent, #a89cff); }',
+              });
             } else if (scenario === 'calendar') {
               const dialog = page.locator('#dialog');
               const calendar = page.locator('#board [data-id="calendar"]');
