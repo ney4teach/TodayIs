@@ -253,6 +253,117 @@ function clockFields() {
 }
 
 
+function positionSearchPanel(form, panel) {
+  const rect = form.getBoundingClientRect();
+  const width = Math.min(Math.max(rect.width, 260), 420, window.innerWidth - 16);
+  const left = Math.min(Math.max(rect.left, 8), window.innerWidth - width - 8);
+  const below = window.innerHeight - rect.bottom;
+  const above = rect.top;
+  const openAbove = below < 240 && above > below;
+  panel.style.width = width + 'px';
+  panel.style.left = left + 'px';
+  panel.style.top = openAbove ? 'auto' : (rect.bottom + 6) + 'px';
+  panel.style.bottom = openAbove ? (window.innerHeight - rect.top + 6) + 'px' : 'auto';
+  panel.style.maxHeight = Math.min(320, Math.max(0, (openAbove ? above : below) - 14)) + 'px';
+}
+
+function searchAddress(value) {
+  const explicit = /^https?:\/\//i.test(value);
+  if (/\s|\\/.test(value)) return '';
+  if (!explicit && !/^(?:[\p{L}\p{N}-]+\.)+(?:[\p{L}\p{N}-]{2,}|\d)(?::\d+)?(?:[/?#]|$)/u.test(value)) return '';
+  const host = value.split(/[/:?#]/, 1)[0];
+  if (!explicit && /^[\d.]+$/.test(host) && !/^(?:\d{1,3}\.){3}\d{1,3}$/.test(host)) return '';
+  try {
+    const address = new URL(explicit ? value : 'https://' + value);
+    return address.username || address.password || (!explicit && !/\.[a-z]/i.test(address.hostname) && !/^\d+(\.\d+){3}$/.test(address.hostname)) ? '' : address.href;
+  } catch {
+    return '';
+  }
+}
+
+function searchSuggestions(value, history, sites) {
+  const term = value.trim().toLowerCase();
+  if (!term) return [];
+  const recent = history.filter(item => item.toLowerCase().includes(term)).slice(0, 4)
+    .map(title => ({title, kind:'История'}));
+  const matches = [];
+  const seen = new Set();
+  for (const site of sites) {
+    if (!((site.title || '') + ' ' + site.url).toLowerCase().includes(term)) continue;
+    const href = searchAddress(site.url);
+    if (!href || seen.has(href)) continue;
+    seen.add(href);
+    matches.push({title:site.title || site.url, kind:'Закладка', href});
+    if (matches.length === 4) break;
+  }
+  return [...recent, ...matches];
+}
+
+function addSearchSuggestions(form, query, readHistory, choose) {
+  const list = el('ul', 'search-history-panel search-suggestions');
+  list.id = 'todayis-search-suggestions';
+  list.setAttribute('popover', 'manual');
+  list.setAttribute('role', 'listbox');
+  list.setAttribute('aria-label', 'Подсказки поиска');
+  query.setAttribute('role', 'combobox');
+  query.setAttribute('aria-controls', list.id);
+  query.setAttribute('aria-autocomplete', 'list');
+  query.setAttribute('aria-expanded', 'false');
+
+  let items = [];
+  let selected = -1;
+  function close() {
+    if (list.matches(':popover-open')) list.hidePopover();
+    query.setAttribute('aria-expanded', 'false');
+    query.removeAttribute('aria-activedescendant');
+    selected = -1;
+  }
+  function show() {
+    if (document.activeElement !== query) return;
+    const sites = [...state.siteTiles, ...bookmarkSites];
+    items = searchSuggestions(query.value, readHistory(), sites);
+    if (!items.length) return close();
+    selected = -1;
+    query.removeAttribute('aria-activedescendant');
+    list.replaceChildren(...items.map((item, index) => {
+      const row = el('li', 'search-suggestion');
+      row.id = list.id + '-' + index;
+      row.setAttribute('role', 'option');
+      row.setAttribute('aria-selected', 'false');
+      row.append(el('span', 'search-suggestion-title', item.title), el('small', '', item.kind));
+      row.addEventListener('pointerdown', event => event.preventDefault());
+      row.addEventListener('click', () => choose(item));
+      return row;
+    }));
+    positionSearchPanel(form, list);
+    if (!list.matches(':popover-open')) list.showPopover();
+    query.setAttribute('aria-expanded', 'true');
+  }
+  query.addEventListener('input', show);
+  query.addEventListener('blur', close);
+  query.addEventListener('keydown', event => {
+    if (event.isComposing) return;
+    if (event.key === 'Escape' && list.matches(':popover-open')) {
+      event.preventDefault();
+      close();
+      return;
+    }
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    if (!list.matches(':popover-open')) show();
+    if (!list.matches(':popover-open')) return;
+    event.preventDefault();
+    const previous = list.children[selected];
+    if (previous) previous.setAttribute('aria-selected', 'false');
+    const step = event.key === 'ArrowDown' ? 1 : -1;
+    selected = selected === -1 && step === -1 ? items.length - 1 : (selected + step + items.length) % items.length;
+    const row = list.children[selected];
+    row.setAttribute('aria-selected', 'true');
+    query.setAttribute('aria-activedescendant', row.id);
+    row.scrollIntoView({block:'nearest'});
+  });
+  return {list, close, selectedItem: () => items[selected]};
+}
+
 function addSearchHistory(form, query) {
   const key = 'todayis.searchHistory';
   function read() {
@@ -332,23 +443,12 @@ function addSearchHistory(form, query) {
   panel.addEventListener('beforetoggle', event => {
     if (event.newState !== 'open') return;
     render();
-    const rect = form.getBoundingClientRect();
-    const width = Math.min(Math.max(rect.width, 260), 420, window.innerWidth - 16);
-    const left = Math.min(Math.max(rect.left, 8), window.innerWidth - width - 8);
-    const below = window.innerHeight - rect.bottom;
-    const above = rect.top;
-    const openAbove = below < 240 && above > below;
-    panel.style.width = width + 'px';
-    panel.style.left = left + 'px';
-    panel.style.top = openAbove ? 'auto' : (rect.bottom + 6) + 'px';
-    panel.style.bottom = openAbove ? (window.innerHeight - rect.top + 6) + 'px' : 'auto';
-    panel.style.maxHeight = Math.min(320, Math.max(0, (openAbove ? above : below) - 14)) + 'px';
+    positionSearchPanel(form, panel);
   });
-  form.addEventListener('submit', () => {
-    const value = query.value.trim();
-    if (value) save([value, ...read().filter(item => item !== value)].slice(0, 20));
-  });
-  return {trigger, panel};
+  function remember(value) {
+    save([value, ...read().filter(item => item !== value)].slice(0, 20));
+  }
+  return {trigger, panel, read, remember};
 }
 
 function renderSearch(container) {
@@ -420,6 +520,7 @@ function renderSearch(container) {
       query.value = event.results[event.resultIndex][0].transcript.trim();
       announce();
       query.focus();
+      query.dispatchEvent(new Event('input'));
     };
     recognition.onerror = event => {
       const errors = {
@@ -444,14 +545,25 @@ function renderSearch(container) {
     }
   });
 
-  const {trigger, panel} = addSearchHistory(form, query);
+  const {trigger, panel, read, remember} = addSearchHistory(form, query);
+  function choose(item) {
+    suggestions.close();
+    const href = item.href || searchAddress(item.title);
+    if (href) location.assign(href);
+    else {
+      remember(item.title);
+      location.assign(engines[engine.value] + encodeURIComponent(item.title));
+    }
+  }
+  const suggestions = addSearchSuggestions(form, query, read, choose);
   form.addEventListener('submit', event => {
     event.preventDefault();
     const value = query.value.trim();
-    if (value) location.assign(engines[engine.value] + encodeURIComponent(value));
+    const item = suggestions.selectedItem();
+    if (item || value) choose(item || {title:value});
     else query.focus();
   });
-  form.append(picker, query, trigger, mic, submit, panel);
+  form.append(picker, query, trigger, mic, submit, panel, suggestions.list);
   container.append(form, status);
 }
 

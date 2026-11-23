@@ -328,3 +328,19 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   .search-bar button {width:25px}
   .search-picker {padding-inline:3px; gap:1px}
 }
+
+.search-suggestions {list-style:none; padding:5px}
+.search-suggestion {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  padding:8px 10px;
+  border-radius:8px;
+  cursor:pointer;
+}
+.search-suggestion:hover,.search-suggestion[aria-selected=true] {
+  background:color-mix(in srgb,var(--accent) 15%,transparent);
+}
+.search-suggestion-title {overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.search-suggestion small {flex:none}
