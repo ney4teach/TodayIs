@@ -3,6 +3,13 @@ name: Подготовить пост
 on:
   workflow_dispatch:
     inputs:
+      destination:
+        description: Куда отправить пост
+        type: choice
+        default: preview
+        options:
+          - preview
+          - channel
       source:
         description: Ссылка на PR или релиз Today Is
         required: true
@@ -178,18 +185,19 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: todayis-screenshot
-      - name: Отправить черновик в личку
+      - name: Отправить пост в Telegram
         env:
           SOURCE_URL: ${{ inputs.source }}
           POST_SUMMARY: ${{ inputs.summary }}
           GH_TOKEN: ${{ github.token }}
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_PREVIEW_CHAT_ID }}
+          PREVIEW_CHAT_ID: ${{ secrets.TELEGRAM_PREVIEW_CHAT_ID }}
+          POST_DESTINATION: ${{ inputs.destination }}
         run: |
           node --input-type=module <<'NODE'
           import { readFile } from 'node:fs/promises';
 
-          const { SOURCE_URL, POST_SUMMARY, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
+          const { SOURCE_URL, POST_SUMMARY, GH_TOKEN, BOT_TOKEN, PREVIEW_CHAT_ID, POST_DESTINATION } = process.env;
           const requestOptions = { signal: AbortSignal.timeout(20000), redirect: 'error' };
 
           const completedActions = {
@@ -219,9 +227,13 @@ jobs:
             });
           }
 
-          async function sendPreview() {
-            if (!BOT_TOKEN || !/^[1-9]\d*$/.test(CHAT_ID ?? '')) {
-              throw new Error('Проверьте токен бота и положительный ID личного чата в секретах GitHub.');
+          async function sendPost() {
+            const channel = '@todayisdesk';
+            const publish = POST_DESTINATION === 'channel';
+            const chatId = publish ? channel : PREVIEW_CHAT_ID;
+            if (!BOT_TOKEN) throw new Error('Добавьте TELEGRAM_BOT_TOKEN в секреты GitHub.');
+            if (!publish && !/^[1-9]\d*$/.test(chatId ?? '')) {
+              throw new Error('Проверьте TELEGRAM_PREVIEW_CHAT_ID в секретах GitHub.');
             }
 
             const source = /^https:\/\/github\.com\/ney4teach\/TodayIs\/(pull\/([1-9]\d*)|releases\/tag\/([^?#\s]+))\/?$/i
@@ -271,7 +283,7 @@ jobs:
             }).join('\n');
             const text = '<b>' + escape(heading) + '</b>' + (summary ? '\n\n' + formattedSummary : '');
             const form = new FormData();
-            form.set('chat_id', CHAT_ID);
+            form.set('chat_id', chatId);
             form.set('parse_mode', 'HTML');
             form.set('caption', text);
             form.set('photo', new Blob([generated], { type: 'image/png' }), 'todayis-preview.png');
@@ -284,15 +296,19 @@ jobs:
                 body: form,
               });
             } catch {
-              throw new Error('Telegram не ответил. Проверьте личку перед повторным запуском.');
+              throw new Error('Telegram не ответил. Проверьте, появился ли пост, перед повторным запуском.');
             }
-            if (!telegram.ok || !(await telegram.json()).ok) {
-              throw new Error('Telegram не принял черновик. HTTP ' + telegram.status);
+            const sent = await telegram.json().catch(() => null);
+            if (!telegram.ok || !sent?.ok) {
+              const hint = publish ? ' Проверьте право бота публиковать сообщения в ' + channel + '.' : '';
+              throw new Error('Telegram не принял пост. HTTP ' + telegram.status + '.' + hint);
             }
-            console.log('Черновик отправлен в личный чат.');
+            console.log(publish
+              ? 'Опубликовано: https://t.me/' + channel.slice(1) + '/' + sent.result.message_id
+              : 'Черновик отправлен в личный чат.');
           }
 
-          await sendPreview().catch((error) => {
+          await sendPost().catch((error) => {
             console.error(error.message);
             process.exitCode = 1;
           });
