@@ -292,3 +292,43 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .widget-scale {display:grid;gap:8px}
 .widget-scale input[type="range"] {width:100%;margin:0;padding:0;accent-color:var(--accent);cursor:pointer}
 #widget-scale-value {font-variant-numeric:tabular-nums}
+
+/* Clock settings */
+#dialog[data-view=settings]:has(.clock-settings-preview) #fields {gap:22px}
+.clock-settings-preview .card[data-id=clock] {
+  position:relative;inset:auto;width:100%;height:138px;box-shadow:none;
+  background:var(--surface);border-radius:18px;backdrop-filter:none;
+}
+.clock-settings-preview button:disabled {opacity:1;cursor:default}
+.clock-settings-preview .activity-copy>small {font-size:.7em}
+.clock-choices,.clock-city-choices {border:0;padding:0;margin:0;min-width:0}
+.clock-choices legend,.clock-city-choices legend {font-size:1em;font-weight:600;margin-bottom:10px;padding:0}
+.clock-choice-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.clock-choices:has(input[name="clock-activityCenter"]) .clock-choice-grid {grid-template-columns:repeat(3,minmax(0,1fr))}
+.clock-choice {
+  position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:7px;padding:12px 6px;border:1px solid var(--line);border-radius:14px;
+  background:var(--field);cursor:pointer;min-width:0;text-align:center;
+}
+.clock-choice:hover {background:color-mix(in srgb,var(--accent) 8%,var(--field))}
+.clock-choice:has(input:checked) {border-color:var(--soft);background:color-mix(in srgb,var(--accent) 13%,var(--field))}
+.clock-choice:has(input:focus-visible) {outline:2px solid var(--soft);outline-offset:3px}
+.clock-choice input {position:absolute;opacity:0;width:1px;height:1px;padding:0;top:8px;left:8px}
+.clock-choice-label {font-size:.85em;overflow-wrap:anywhere}
+.clock-face-sample {display:grid;place-items:center;width:100%;height:60px;container-type:size}
+.clock-sample-digital {font-size:2em;font-variant-numeric:tabular-nums;letter-spacing:-.04em}
+.clock-face-sample .clock-dial {width:52px}
+.clock-image-sample {display:grid;place-items:center;width:100%;height:46px}
+.clock-image-sample img {width:54px;height:44px;object-fit:contain}
+.clock-image-sample .activity-mosaic {width:54px;height:36px;--activity-work:#91c9ff;--activity-media:#f0a185;--activity-social:#79d6b6;--activity-other:#b7acd5}
+.clock-settings-hint {font-size:.85em;line-height:1.45;margin:0 0 12px}
+.clock-city-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.clock-city-choice {display:flex;align-items:center;gap:7px;padding:9px 8px;border:1px solid var(--line);border-radius:10px;background:var(--field);font-size:.85em;cursor:pointer;min-width:0}
+.clock-city-choice span {overflow-wrap:anywhere}
+.clock-city-choice:has(input:checked) {border-color:var(--soft);background:color-mix(in srgb,var(--accent) 12%,var(--field))}
+.clock-city-choice:has(input:focus-visible) {outline:2px solid var(--soft);outline-offset:2px}
+.clock-city-choice input {width:14px;height:14px;flex:none;margin:0}
+@media (prefers-reduced-motion:no-preference) {
+  .clock-choice,.clock-city-choice {transition:background .15s,border-color .15s}
+}
+.clock-preview-caption {display:block;margin-top:7px;font-size:.75em;text-align:center;color:var(--muted)}

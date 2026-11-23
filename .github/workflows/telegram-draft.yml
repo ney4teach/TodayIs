@@ -110,6 +110,14 @@ jobs:
             await total.filter({hasText: /^8\sч 55\sмин$/}).waitFor();
             await dialog.locator('summary').filter({hasText: 'Работа и учёба'}).click();
             await dialog.getByText('github.com', {exact: true}).waitFor();
+            await dialog.locator('#close').click();
+            await page.locator('#dock button').last().click();
+            await page.locator('[data-page="widgets"]').click();
+            await page.locator('[data-page="clock"]').click();
+            await dialog.locator('input[name="clock-face"][value="analog"]').check();
+            await dialog.locator('.clock-settings-preview .clock-dial').waitFor();
+            await dialog.locator('input[name="clock-activityCenter"][value="mascot"]').check();
+            await dialog.locator('.clock-settings-preview .activity-peek').waitFor();
             await page.screenshot({
               path: 'todayis-activity.png',
               animations: 'disabled',

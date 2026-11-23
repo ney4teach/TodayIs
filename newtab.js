@@ -355,21 +355,92 @@ document.addEventListener('visibilitychange',()=>{
 });
 setInterval(()=>{if (!document.hidden && board.querySelector('.activity-button')) refreshActivity()},60000);
 function clockFields() {
-  selectField('Циферблат',[['digital','Цифровой'],['analog','Стрелочный']],state.clock.face,v=>change(s=>s.clock.face=v));
-  selectField('Изображение на диаграмме',clockActivityCenters,state.clock.activityCenter,value=>change(s=>s.clock.activityCenter=value));
-  const group = el('fieldset','clock-zones');
-  group.append(el('legend','','Города для переключения'));
+  const preview=el('div','clock-settings-preview');
+  preview.setAttribute('aria-label','Предпросмотр часов');
+  const card=el('div','card');
+  card.dataset.id='clock';
+  const inside=el('div','inside');
+  card.append(inside);
+  preview.append(card);
+  renderClock(inside);
+  const {groups,total}=activityBreakdown([['github.com',4800000],['youtube.com',2880000],['t.me',1920000]]);
+  const copy=el('span','activity-copy');
+  copy.append(el('strong','',duration(total)),el('small','','на сайтах'));
+  inside.querySelector('.activity-button').replaceChildren(activityRing(groups,total),copy);
+  preview.append(el('small','clock-preview-caption','Пример данных активности'));
+  for (const button of inside.querySelectorAll('button')) button.disabled=true;
+  fields.append(preview);
+
+  function choices(title,key,options,visual) {
+    const section=el('fieldset','clock-choices');
+    section.append(el('legend','',title));
+    const list=el('div','clock-choice-grid');
+    for (const [value,label] of options) {
+      const item=el('label','clock-choice');
+      const radio=input('','radio');
+      radio.name='clock-'+key;
+      radio.value=value;
+      radio.checked=state.clock[key]===value;
+      radio.onchange=async()=>{
+        await change(s=>s.clock[key]=value);
+        fields.querySelector('input[name="clock-'+key+'"][value="'+value+'"]')?.focus({preventScroll:true});
+      };
+      item.append(radio,visual(value),el('span','clock-choice-label',label));
+      list.append(item);
+    }
+    section.append(list);
+    fields.append(section);
+  }
+  choices('Циферблат','face',[['digital','Цифровой'],['analog','Стрелочный']],value=>{
+    const sample=el('span','clock-face-sample');
+    if (value==='digital') sample.append(el('span','clock-sample-digital','10:08'));
+    else {
+      const dial=el('span','clock-dial');
+      dial.style.setProperty('--hour','304deg');
+      dial.style.setProperty('--minute','48deg');
+      dial.append(el('i','hour-hand'),el('i','minute-hand'));
+      sample.append(dial);
+    }
+    return sample;
+  });
+  choices('На диаграмме','activityCenter',clockActivityCenters.map(([value,label])=>[value,value==='none'?'Без изображения':label]),value=>{
+    const sample=el('span','clock-image-sample');
+    if (value==='none') {
+      const {groups,total}=activityBreakdown([['github.com',50],['youtube.com',30],['t.me',20]]);
+      const mosaic=activityRing(groups,total);
+      mosaic.querySelector('.activity-peek,.activity-center-image')?.remove();
+      sample.append(mosaic);
+    } else {
+      const image=el('img');
+      image.src=clockActivityImages[value];
+      image.alt='';
+      image.draggable=false;
+      sample.append(image);
+    }
+    return sample;
+  });
+  const group=el('fieldset','clock-city-choices');
+  group.append(el('legend','','Города'));
+  group.append(el('p','muted clock-settings-hint','Местное время включено всегда. Выбранные города переключаются в виджете.'));
+  const list=el('div','clock-city-grid');
   for (const [zone,name] of Object.entries(clockCities)) {
     if (zone==='local') continue;
-    const label = el('label'), toggle = input('','checkbox');
-    toggle.checked = state.clock.cities.includes(zone);
-    toggle.onchange = ()=>change(s=>{
-      s.clock.cities = toggle.checked ? [...s.clock.cities,zone] : s.clock.cities.filter(v=>v!==zone);
-    });
-    label.append(toggle,document.createTextNode(name));group.append(label);
+    const label=el('label','clock-city-choice'), toggle=input('','checkbox');
+    toggle.checked=state.clock.cities.includes(zone);
+    toggle.onchange=async()=>{
+      await change(s=>{
+        s.clock.cities=toggle.checked?[...s.clock.cities,zone]:s.clock.cities.filter(v=>v!==zone);
+      });
+      Array.from(fields.querySelectorAll('.clock-city-choice input')).find(node=>node.dataset.zone===zone)?.focus({preventScroll:true});
+    };
+    toggle.dataset.zone=zone;
+    label.append(toggle,el('span','',name));
+    list.append(label);
   }
+  group.append(list);
   fields.append(group);
 }
+
 function contents(id,n){const now=new Date();
  switch(id){
  case 'greeting':{const h=now.getHours(),name=state.tiles.greeting.nickname;const greeting=h<5?'Доброй ночи':h<12?'Доброе утро':h<18?'Добрый день':'Добрый вечер';n.append(el('div','greet-date',now.toLocaleDateString('ru',{weekday:'long',day:'numeric',month:'long'})),el('div','big',name?greeting+', '+name:greeting));break}
@@ -515,5 +586,5 @@ function rotateQuote(){if(stale(state.quote))change(s=>{if(stale(s.quote))s.quot
 async function init(){draw();if(!globalThis.chrome?.storage?.sync){syncStatus='Откройте страницу как расширение Chrome';return}initCloud();chrome.storage.onChanged.addListener((changes,area)=>{if(area==='local'&&changes[cloudKey]){refresh();renderCloud()}if(area==='sync'&&Object.keys(changes).some(k=>k.startsWith('gntd.')))refresh().catch(()=>toast('Ошибка чтения настроек'))});
  try{await refresh();rotateQuote()}catch{syncStatus='Ошибка чтения настроек';toast(syncStatus)}
  bookmarks();for(const event of ['onCreated','onRemoved','onChanged','onMoved','onImportEnded','onChildrenReordered'])chrome.bookmarks[event].addListener(bookmarks);systemInfo();let lastDay=day(new Date()),hour=new Date().getHours();
- setInterval(()=>{const now=new Date(),t=board.querySelector('[data-clock-display]');if(t)updateClock(t,now);if(hour!==now.getHours()){hour=now.getHours();drawOne('greeting')}if(lastDay!==day(now)){lastDay=day(now);drawOne('calendar')}rotateQuote()},15000);setInterval(()=>{if(!document.hidden&&memory)systemInfo()},60000)}
+ setInterval(()=>{const now=new Date();for(const t of document.querySelectorAll('[data-clock-display]'))updateClock(t,now);if(hour!==now.getHours()){hour=now.getHours();drawOne('greeting')}if(lastDay!==day(now)){lastDay=day(now);drawOne('calendar')}rotateQuote()},15000);setInterval(()=>{if(!document.hidden&&memory)systemInfo()},60000)}
 init();
