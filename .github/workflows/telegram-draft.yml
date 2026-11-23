@@ -143,6 +143,11 @@ jobs:
               await page.screenshot({ path: 'todayis-preview-02.png', animations: 'disabled', style: editorStyle });
 
               await dialog.getByRole('button', { name: 'Сохранить график', exact: true }).click();
+              await calendar.locator('.calendar-day.calendar-type-day').first().waitFor({ state: 'attached' });
+              await calendar.locator('.calendar-day.calendar-type-off').first().waitFor({ state: 'attached' });
+              // Older calendar revisions save the schedule without leaving the editor.
+              if (await dialog.locator('.calendar-form').count()) await dialog.locator('#close').click();
+              if (!(await dialog.isVisible())) await openCalendar.click();
               await dialog.locator('.calendar-day.calendar-type-day').first().waitFor();
               await dialog.locator('.calendar-day.calendar-type-off').first().waitFor();
               await page.screenshot({ path: 'todayis-preview-03.png', animations: 'disabled', style: modalStyle });
