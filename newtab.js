@@ -27,7 +27,7 @@ const clockCities = {
   'Europe/Paris':'Париж', 'Asia/Dubai':'Дубай', 'Asia/Tokyo':'Токио', 'America/New_York':'Нью-Йорк'
 };
 const clockActivityCenters = [['mascot','Маскот'],['logo','Логотип'],['none','Пустой центр']];
-const clockActivityStyles = [['classic','Классическое'],['glow','Свечение'],['dashed','Штрихи']];
+const clockActivityStyles = [['classic','Кольцо'],['glow','Градиент'],['dashed','Штрихи']];
 const clockActivityImages = {mascot:'icons/clock-mascot.webp',logo:'icons/clock-logo.webp'};
 function clockOptions(raw = {}) {
   const cities = ['local', ...Object.keys(clockCities).filter(zone => zone !== 'local' && Array.isArray(raw?.cities) && raw.cities.includes(zone))];
