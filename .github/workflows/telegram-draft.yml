@@ -29,11 +29,11 @@ permissions:
 
 jobs:
   screenshot:
-    if: inputs.image_url == ''
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - name: Определить версию расширения
+        if: inputs.image_url == ''
         id: source
         env:
           GH_TOKEN: ${{ github.token }}
@@ -67,15 +67,18 @@ jobs:
           appendFileSync(process.env.GITHUB_OUTPUT, 'ref=' + ref + '\nscenario=' + scenario + '\n');
           NODE
       - uses: actions/checkout@v4
+        if: inputs.image_url == ''
         with:
           ref: ${{ steps.source.outputs.ref }}
           persist-credentials: false
           path: extension
       - name: Установить Chromium
+        if: inputs.image_url == ''
         run: |
           npm install --no-save --no-package-lock playwright@1.58.2
           npx playwright install --with-deps chromium
       - name: Сделать скриншот Today Is
+        if: inputs.image_url == ''
         env:
           SCREENSHOT_SCENARIO: ${{ steps.source.outputs.scenario }}
         run: |
@@ -131,6 +134,35 @@ jobs:
             await context.close();
           }
           NODE
+      - name: Получить скриншот по ссылке
+        if: inputs.image_url != ''
+        env:
+          IMAGE_URL: ${{ inputs.image_url }}
+        run: |
+          curl --fail --silent --show-error --location --max-redirs 4 \
+            --proto '=https' --proto-redir '=https' --max-time 30 --max-filesize 10000000 \
+            --output todayis-preview.png -- "$IMAGE_URL"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: branding
+          sparse-checkout: .github/branding
+      - name: Добавить логотип в правый нижний угол
+        shell: bash
+        run: |
+          if ! command -v convert >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+          fi
+          base64 --decode branding/.github/branding/todayis-watermark.png.base64 > logo.png
+          read -r width height < <(identify -ping -format '%w %h\n' 'todayis-preview.png[0]')
+          short_side=$(( width < height ? width : height ))
+          logo_width=$(( short_side * 14 / 100 + 1 ))
+          inset=$(( short_side * 3 / 100 ))
+          convert logo.png -channel A -level '25%,90%' +channel -trim +repage -resize "${logo_width}x" logo-sized.png
+          convert 'todayis-preview.png[0]' logo-sized.png -gravity southeast \
+            -geometry "+${inset}+${inset}" -composite PNG:todayis-branded.png
+          mv todayis-branded.png todayis-preview.png
       - uses: actions/upload-artifact@v4
         with:
           name: todayis-screenshot
@@ -140,19 +172,16 @@ jobs:
 
   preview:
     needs: screenshot
-    if: ${{ !cancelled() && (needs.screenshot.result == 'success' || needs.screenshot.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
       - uses: actions/download-artifact@v4
-        if: needs.screenshot.result == 'success'
         with:
           name: todayis-screenshot
       - name: Отправить черновик в личку
         env:
           SOURCE_URL: ${{ inputs.source }}
           POST_SUMMARY: ${{ inputs.summary }}
-          IMAGE_URL: ${{ inputs.image_url }}
           GH_TOKEN: ${{ github.token }}
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_PREVIEW_CHAT_ID }}
@@ -160,7 +189,7 @@ jobs:
           node --input-type=module <<'NODE'
           import { readFile } from 'node:fs/promises';
 
-          const { SOURCE_URL, POST_SUMMARY, IMAGE_URL, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
+          const { SOURCE_URL, POST_SUMMARY, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
           const requestOptions = { signal: AbortSignal.timeout(20000), redirect: 'error' };
 
           const completedActions = {
@@ -210,18 +239,7 @@ jobs:
             const title = (sourceData.title || sourceData.name || sourceData.tag_name).trim();
             const body = (sourceData.body || '').replace(/<!--[\s\S]*?-->/g, '');
             const images = /!\[[^\]\n]*\]\((https:\/\/[^)\s]+)[^)\n]*\)|<img\b[^>]*\bsrc=["'](https:\/\/[^"'\s]+)["'][^>]*>/gi;
-            const screenshot = [...body.matchAll(images)]
-              .map((match) => match[1] || match[2])
-              .find((url) => /^https:\/\/(?:github\.com\/user-attachments\/assets\/|user-images\.githubusercontent\.com\/)/i.test(url) ||
-                /\.(?:png|jpe?g|webp)(?:[?#].*)?$/i.test(url));
-            const generated = await readFile('todayis-preview.png').catch((error) => {
-              if (error.code !== 'ENOENT') throw error;
-              return null;
-            });
-            const image = IMAGE_URL.trim() || (!generated && screenshot);
-            if (image && !/^https:\/\/[^\s]+$/i.test(image)) {
-              throw new Error('Для скриншота нужна прямая HTTPS-ссылка.');
-            }
+            const generated = await readFile('todayis-preview.png');
 
             const cleanBody = body.replace(images, '');
             const notes = /^#{1,6}\s+(?:для подписчиков|что изменилось|изменения|что нового|summary|changes)\s*\r?$\n([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/im.exec(cleanBody)?.[1];
@@ -238,7 +256,7 @@ jobs:
               .replace(/\x60/g, '').trim();
 
             const heading = '✨ ' + postTitle(title);
-            if ([heading, summary.replace(/\*\*|__/g, '')].join('\n\n').length > ((image || generated) ? 1024 : 4096)) {
+            if ([heading, summary.replace(/\*\*|__/g, '')].join('\n\n').length > 1024) {
               throw new Error('Черновик слишком длинный. Сократите его через поле summary.');
             }
             const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -252,27 +270,18 @@ jobs:
               return '• <b>' + escape(firstSentence[1]) + '</b>' + escape(line.slice(firstSentence[0].length));
             }).join('\n');
             const text = '<b>' + escape(heading) + '</b>' + (summary ? '\n\n' + formattedSummary : '');
-            const common = { chat_id: CHAT_ID, parse_mode: 'HTML' };
-            const payload = image
-              ? { ...common, photo: image, caption: text }
-              : { ...common, text, link_preview_options: { is_disabled: true } };
-
-            const form = generated && new FormData();
-            if (form) {
-              form.set('chat_id', CHAT_ID);
-              form.set('parse_mode', 'HTML');
-              form.set('caption', text);
-              form.set('photo', new Blob([generated], { type: 'image/png' }), 'todayis-preview.png');
-            }
+            const form = new FormData();
+            form.set('chat_id', CHAT_ID);
+            form.set('parse_mode', 'HTML');
+            form.set('caption', text);
+            form.set('photo', new Blob([generated], { type: 'image/png' }), 'todayis-preview.png');
 
             let telegram;
             try {
-              telegram = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/' +
-                ((image || generated) ? 'sendPhoto' : 'sendMessage'), {
+              telegram = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/sendPhoto', {
                 ...requestOptions,
                 method: 'POST',
-                headers: form ? undefined : { 'Content-Type': 'application/json' },
-                body: form || JSON.stringify(payload),
+                body: form,
               });
             } catch {
               throw new Error('Telegram не ответил. Проверьте личку перед повторным запуском.');
