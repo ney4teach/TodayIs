@@ -111,6 +111,7 @@ jobs:
               const player = page.locator('[data-id="music"]');
               await player.getByText('Ночной маршрут', {exact:true}).waitFor();
               await player.locator('.music-record').waitFor();
+              await player.locator('.system-controls .play svg').waitFor();
               await player.screenshot({path:'todayis-activity.png',animations:'disabled'});
               return;
             }

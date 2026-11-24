@@ -302,8 +302,22 @@ const systemMusic = (() => {
     if (media.artist) body.append(el('span','muted',media.artist));
     const buttons = el('div','system-controls');
     const toggle = media.playing ? 'pause' : 'play';
-    for (const [key,label,symbol] of [['previous','Предыдущий трек','⏮'],[toggle,media.playing?'Пауза':'Воспроизвести',media.playing?'Ⅱ':'▶'],['next','Следующий трек','⏭']]) {
-      const control = btn(label,symbol,()=>send(key),key === toggle ? 'play' : '');
+    const controls = [
+      ['previous','Предыдущий трек','M5 5h2v14H5z M19 6v12a1 1 0 0 1-1.5.9l-9-6a1 1 0 0 1 0-1.8l9-6A1 1 0 0 1 19 6z'],
+      [toggle,media.playing ? 'Пауза' : 'Воспроизвести',media.playing
+        ? 'M6 3h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z M14 3h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1h-4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z'
+        : 'M7 4.5a1 1 0 0 1 1.5-.9l13 7.5a1 1 0 0 1 0 1.8l-13 7.5a1 1 0 0 1-1.5-.9z'],
+      ['next','Следующий трек','M17 5h2v14h-2z M5 6a1 1 0 0 1 1.5-.9l9 6a1 1 0 0 1 0 1.8l-9 6A1 1 0 0 1 5 18z'],
+    ];
+    for (const [key,label,shape] of controls) {
+      const control = btn(label,'',()=>send(key),key === toggle ? 'play' : '');
+      const glyph = document.createElementNS('http://www.w3.org/2000/svg','svg');
+      glyph.setAttribute('viewBox','0 0 24 24');
+      glyph.setAttribute('aria-hidden','true');
+      const path = document.createElementNS(glyph.namespaceURI,'path');
+      path.setAttribute('d',shape);
+      glyph.append(path);
+      control.append(glyph);
       control.dataset.musicControl = key === toggle ? 'playback' : key;
       control.disabled = !media[key];
       buttons.append(control);

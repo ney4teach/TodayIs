@@ -216,8 +216,19 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 }
 .system-controls button:disabled,.music-sources button:disabled{opacity:.5}
 .system-controls button:hover:not(:disabled),.music-sources button:hover:not(:disabled){background:var(--line)}
-.system-controls .play{background:var(--accent);color:var(--accent-ink,white)}
-.system-controls .play:hover:not(:disabled){background:var(--accent);filter:brightness(.9)}
+.system-controls{gap:clamp(3px,1.2cqw,10px)}
+.system-controls button{
+  width:var(--music-skip-size,34px);min-width:0;height:var(--music-skip-size,34px);
+  padding:0;border-radius:50%;color:var(--muted);
+  transition:background-color 150ms ease,color 150ms ease;
+}
+.system-controls svg{width:var(--music-icon-size,20px);height:var(--music-icon-size,20px);fill:currentColor}
+.system-controls .play{
+  width:var(--music-play-size,48px);height:var(--music-play-size,48px);border-radius:50%;
+  background:var(--ink);color:var(--bg);
+}
+.system-controls .play:hover:not(:disabled){background:color-mix(in srgb,var(--ink) 88%,var(--accent))}
+.system-controls button:not(.play):hover:not(:disabled){color:var(--ink)}
 .music-sources{
   justify-self:end;padding-inline-start:6px;border-inline-start:1px solid color-mix(in srgb,var(--ink) 19%,transparent);
 }
@@ -252,12 +263,14 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   .system-controls{grid-row:2;grid-column:1}
   .music-sources{grid-row:2;grid-column:2}
   .system-track-body{grid-column:1/-1}
-  .system-controls,.music-sources{gap:2px}
+  .system-controls{--music-play-size:34px;--music-skip-size:25px;--music-icon-size:16px;gap:2px}
+  .music-sources{gap:2px}
 }
 @container music (max-height:88px){
   .card[data-id=music] .inside{padding-block:5px}
   .system-track{row-gap:2px}
-  .system-controls button,.music-sources button{height:23px}
+  .system-controls{--music-play-size:34px;--music-skip-size:26px;--music-icon-size:17px}
+  .music-sources button{height:23px}
 }
 @container music (max-height:64px){
   .card[data-id=music] .inside{padding-block:1px}
@@ -266,12 +279,12 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   .system-track-body{grid-row:1;grid-column:1;gap:0}
   .system-track-body strong{font-size:.9em;line-height:1}
   .system-track-body .muted{font-size:.75em;line-height:1}
-  .system-controls{grid-row:1;grid-column:2;gap:1px}
+  .system-controls{grid-row:1;grid-column:2;gap:1px;--music-play-size:25px;--music-skip-size:19px;--music-icon-size:14px}
   .music-sources{grid-row:1;grid-column:3;gap:1px;padding-inline-start:2px}
-  .system-controls button,.music-sources button{min-width:19px;height:20px;padding:0 2px}
+  .music-sources button{min-width:19px;height:20px;padding:0 2px}
 }
 @media (prefers-reduced-motion:reduce){
-  .system-track :is(.music-timeline span,.music-tonearm){transition:none}
+  .system-track :is(.music-timeline span,.music-tonearm,.system-controls button){transition:none}
   .system-track :is(.music-record-label,.music-meter i){animation:none!important}
 }
 
