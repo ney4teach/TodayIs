@@ -73,7 +73,7 @@ const systemMusic = (() => {
     const display = clock(seconds - Number(line.dataset.start));
     line.querySelector('output').textContent = display;
     slider.setAttribute('aria-valuetext',display);
-    const fraction = (slider.valueAsNumber - Number(slider.min)) / (Number(slider.max) - Number(slider.min));
+    const fraction = (slider.valueAsNumber - Number(slider.min)) / (Number(slider.max) - Number(slider.min)) || 0;
     slider.style.setProperty('--progress', (100 * fraction) + '%');
   }
   function timeline(data, commit) {
@@ -95,6 +95,50 @@ const systemMusic = (() => {
     paint(line,data.position);
     return line;
   }
+  // The record runs at 33⅓ rpm, so a full turn corresponds to 1.8 seconds.
+  function scrubRecord(record,line) {
+    const slider = line.querySelector('input');
+    let drag;
+    function pointerAngle(event) {
+      const x = event.clientX - drag.x, y = event.clientY - drag.y;
+      return Math.hypot(x,y) < 10 ? null : Math.atan2(y,x);
+    }
+    record.onpointerdown = event => {
+      if (drag || event.button !== 0) return;
+      const box = record.getBoundingClientRect();
+      drag = {id:event.pointerId, x:box.x + box.width / 2, y:box.y + box.height / 2,
+        start:slider.valueAsNumber, seconds:slider.valueAsNumber, rotation:0, moved:false};
+      drag.angle = pointerAngle(event);
+      if (drag.angle === null) { drag = null; return; }
+      line.dataset.drag = '1';
+      record.dataset.scrub = 'true';
+      record.setPointerCapture(event.pointerId);
+    };
+    record.onpointermove = event => {
+      if (drag?.id !== event.pointerId) return;
+      const angle = pointerAngle(event);
+      if (angle === null) { drag.angle = null; return; }
+      const delta = drag.angle === null ? 0 : angle - drag.angle;
+      const turn = Math.atan2(Math.sin(delta),Math.cos(delta)) / (2 * Math.PI);
+      drag.angle = angle;
+      drag.rotation += 360 * turn;
+      drag.seconds = Math.min(Number(slider.max), Math.max(Number(slider.min), drag.seconds + 1.8 * turn));
+      drag.moved ||= Math.abs(drag.rotation) > 1;
+      record.style.setProperty('--record-scrub', drag.rotation + 'deg');
+      paint(line,drag.seconds);
+    };
+    function finish(event) {
+      if (drag?.id !== event.pointerId) return;
+      if (event.type === 'pointerup' && drag.moved) slider.onchange();
+      else paint(line,drag.start);
+      drag = null;
+      delete line.dataset.drag;
+      delete record.dataset.scrub;
+      record.style.removeProperty('--record-scrub');
+    }
+    record.onpointerup = record.onpointercancel = record.onlostpointercapture = finish;
+    record.classList.add('music-record-seek');
+  }
   function trackIdentity(item) {
     return JSON.stringify([item.status,item.sourceId,item.trackKey,item.title,item.artist,item.cover]);
   }
@@ -102,10 +146,25 @@ const systemMusic = (() => {
   function redrawMusic(fadeIn = false) {
     const focused = document.activeElement;
     const control = focused?.closest('.card[data-id="music"]') ? focused.dataset.musicControl : '';
+    const oldRecord = document.querySelector('.music-record-label');
+    const spin = oldRecord?.getAnimations()[0]?.currentTime;
+    const wasPlaying = oldRecord?.closest('.system-track')?.dataset.playing;
     drawOne('music');
+    const newRecord = document.querySelector('.music-record-label');
+    const track = newRecord?.closest('.system-track');
+    if (!fadeIn && spin != null && newRecord) {
+      const animation = newRecord.getAnimations()[0];
+      if (animation) animation.currentTime = spin;
+      if (wasPlaying && wasPlaying !== track.dataset.playing) {
+        const playing = track.dataset.playing === 'true';
+        track.querySelector('.music-tonearm').animate(
+          [{transform:playing ? 'rotate(-8deg)' : 'rotate(11deg)'},{transform:playing ? 'rotate(11deg)' : 'rotate(-8deg)'}],
+          {duration:500,easing:'cubic-bezier(.77,0,.175,1)'});
+      }
+    }
     if (control) document.querySelector('.card[data-id="music"] [data-music-control="' + control + '"]')?.focus({preventScroll:true});
     if (fadeIn) document.querySelector('.card[data-id="music"] .inside')?.animate(
-      [{opacity:0},{opacity:1}],{duration:210,easing:'ease-out'});
+      [{opacity:0},{opacity:1}],{duration:220,easing:'cubic-bezier(0.23,1,0.32,1)'});
   }
   function update(next) {
     const {position, ...details} = next;
@@ -157,7 +216,7 @@ const systemMusic = (() => {
         if (pin && next.sources && !next.sources.some(s => s.app === pin)) handle = '';
         if (next.accepted === false) toast('Плеер отклонил команду');
         update(next);
-        if (queued && queued.generation === next.generation) {
+        if (queued && !changingTrack && queued.generation === next.generation) {
           const {action, payload} = queued;
           queued = null;
           send(action, payload);
@@ -202,11 +261,6 @@ const systemMusic = (() => {
   function render(n) {
     renderedRevision = revision;
     start();
-    const card = n.closest('.card');
-    const tinted = media.status === 'active' && state.musicTint !== false && /^#[0-9a-f]{6}$/i.test(media.tint);
-    card.classList.toggle('music-tinted',!!tinted);
-    if (tinted) card.style.setProperty('--cover-color',media.tint);
-    else card.style.removeProperty('--cover-color');
     if (media.status !== 'active') {
       if (media.status === 'idle') {
         if (state.track && !pin && !media.sources?.length) {
@@ -228,12 +282,18 @@ const systemMusic = (() => {
       return true;
     }
     const row = el('div','system-track');
-    const art = el('div','system-cover','♫');
+    row.dataset.playing = String(Boolean(media.playing));
+    const art = el('div','system-cover');
+    art.setAttribute('aria-hidden','true');
+    const record = el('div','music-record');
+    const label = el('div','music-record-label','♫');
+    record.append(label);
+    art.append(record,el('span','music-tonearm'));
     if (media.cover) {
       const img = el('img');
       img.alt = '';
       img.src = media.cover;
-      art.replaceChildren(img);
+      label.replaceChildren(img);
     }
     const body = el('div','system-track-body');
     const title = el('strong','',media.title || 'Медиаплеер');
@@ -248,10 +308,15 @@ const systemMusic = (() => {
       control.disabled = !media[key];
       buttons.append(control);
     }
-    row.append(art,body,buttons,sourcePicker());
+    const meter = el('div','music-meter');
+    meter.setAttribute('aria-hidden','true');
+    for (let i = 0; i < 5; i++) meter.append(el('i'));
+    row.append(art,body,meter,buttons,sourcePicker());
     if (media.end > media.start) {
       const trackKey = media.trackKey;
-      row.append(timeline(media, seconds => send('seek',{seconds,trackKey})));
+      const range = timeline(media, seconds => send('seek',{seconds,trackKey}));
+      row.append(range);
+      if (media.seek) scrubRecord(record,range);
     }
     n.append(row);
     return true;

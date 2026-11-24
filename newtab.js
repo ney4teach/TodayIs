@@ -139,10 +139,8 @@ function tasks(n){n.append(cap('tasks',btn('Добавить задачу','＋'
 function musicSettings(){showSettings('music')}
 function musicFields(){
   fields.append(el('strong','','Медиаплееры Windows'),el('div','muted','Один раз запустите media-host/install.cmd из папки установленного расширения. Виджет подключится автоматически.'));
-  const tint=input('','checkbox');tint.checked=state.musicTint;
-  field('Оттенок обложки в карточке',tint);
   fields.append(el('strong','','Аудиофайл на случай, когда нет активного плеера'));
-  const title=input(state.trackName),src=input(state.track,'url');title.maxLength=120;field('Название',title);field('Ссылка на аудиофайл',src);formSave('Сохранить',()=>{if(src.value&&!url(src.value)){src.setCustomValidity('Укажите HTTP или HTTPS');src.reportValidity();src.setCustomValidity('');return}change(s=>{s.musicTint=tint.checked;s.track=url(src.value);s.trackName=title.value.trim()});showSettings('widgets')})}
+  const title=input(state.trackName),src=input(state.track,'url');title.maxLength=120;field('Название',title);field('Ссылка на аудиофайл',src);formSave('Сохранить',()=>{if(src.value&&!url(src.value)){src.setCustomValidity('Укажите HTTP или HTTPS');src.reportValidity();src.setCustomValidity('');return}change(s=>{s.track=url(src.value);s.trackName=title.value.trim()});showSettings('widgets')})}
 function weatherText(code){if(code===0)return 'Ясно';if(code<=3)return 'Облачно';if(code<=48)return 'Туман';if(code<=57)return 'Морось';if(code<=67)return 'Дождь';if(code<=77)return 'Снег';if(code<=82)return 'Ливень';if(code<=86)return 'Снегопад';return 'Гроза'}
 
 const clockFormats = new Map();

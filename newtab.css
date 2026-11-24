@@ -152,27 +152,59 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .bookmark-settings-site small { display:block }
 .bookmark-settings-group .bookmark-remove { color:var(--muted); font-size:13px }
 .bookmark-settings-group .bookmark-remove:hover { color:var(--ink) }
-.card[data-id=music]{container:music / size}
+.card[data-id=music]{
+  container:music / size;
+  --music-accent:var(--soft);
+  --music-rim:color-mix(in srgb,var(--ink) 24%,transparent);
+  background:linear-gradient(142deg,color-mix(in srgb,var(--accent) 19%,var(--surface)),var(--surface) 60%);
+  border-color:var(--music-rim);
+  box-shadow:inset 0 1px 1px var(--music-rim),inset 0 -1px 0 var(--line);
+}
 .card[data-id=music] .inside{overflow:hidden;justify-content:center;gap:5px;padding:clamp(7px,9cqh,18px) clamp(10px,4cqw,22px)}
 .card[data-id=music] .inside:has(.system-track,.music-empty)>.cap{display:none}
-.card.music-tinted{
-  --music-fill:color-mix(in srgb,var(--cover-color) 33%,var(--glass));
-  --music-accent:color-mix(in srgb,var(--cover-color) 36%,white);
-  background:var(--music-fill);
-}
-.light .card.music-tinted{
-  --music-fill:color-mix(in srgb,var(--cover-color) 18%,white);
-  --music-accent:color-mix(in srgb,var(--cover-color) 45%,#101019);
-}
 .system-track{
-  display:grid;grid-template-columns:auto minmax(0,1fr) auto auto;align-items:center;
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto auto auto;align-items:center;
   gap:4px clamp(6px,2cqw,16px);min-width:0;
 }
+/* Liquid glass and turntable motion inspired by Kokonut UI's Now Playing. */
 .system-cover{
-  width:clamp(32px,min(15cqw,43cqh),70px);aspect-ratio:1;display:grid;place-items:center;
-  border-radius:10px;background:var(--field);color:var(--music-accent,var(--soft));font-size:1.4em;overflow:hidden;
+  position:relative;width:clamp(32px,min(15cqw,52cqh),96px);aspect-ratio:1;
+  margin-inline-end:4px;isolation:isolate;
 }
-.system-cover img{width:100%;height:100%;object-fit:cover}
+.music-record{
+  position:absolute;inset:0;display:grid;place-items:center;border-radius:50%;
+  rotate:var(--record-scrub,0deg);
+  border:1px solid var(--music-rim);box-shadow:0 3px 10px var(--line);
+  background:repeating-radial-gradient(circle,var(--glass) 0 2px,var(--music-rim) 3px,var(--glass) 4px);
+}
+.music-record-label{
+  display:grid;place-items:center;width:51%;aspect-ratio:1;overflow:hidden;border-radius:50%;
+  color:var(--accent-ink);background:var(--accent);font-size:.8em;
+  animation:music-record-spin 1800ms linear infinite paused;
+}
+.music-record-label img{width:100%;height:100%;object-fit:cover}
+.system-track[data-playing=true] .music-record-label{animation-play-state:running}
+.music-record[data-scrub=true] .music-record-label{animation-play-state:paused}
+.music-record-seek{cursor:grab;touch-action:none}
+.music-record-seek[data-scrub=true]{cursor:grabbing}
+.music-tonearm{
+  position:absolute;pointer-events:none;top:9%;right:1%;height:58%;width:7%;
+  background:var(--muted);border:1px solid var(--music-rim);border-radius:99px;transform-origin:50% 8%;
+  transform:rotate(-8deg);transition:transform 500ms cubic-bezier(.77,0,.175,1);
+}
+.music-tonearm::after{
+  content:"";position:absolute;bottom:0;left:-45%;width:190%;height:25%;border-radius:99px;background:var(--ink);
+}
+.system-track[data-playing=true] .music-tonearm{transform:rotate(11deg)}
+.music-meter{display:flex;align-items:center;gap:2px;height:16px;color:var(--music-accent)}
+.music-meter i{
+  display:block;width:2px;height:100%;border-radius:99px;background:currentColor;transform:scaleY(.14);
+}
+.system-track[data-playing=true] .music-meter i{animation:music-level 680ms ease-in-out infinite alternate}
+.music-meter i:nth-child(2n){animation-delay:-310ms!important}
+.music-meter i:nth-child(3n){animation-delay:-490ms!important}
+@keyframes music-record-spin{to{transform:rotate(1turn)}}
+@keyframes music-level{from{transform:scaleY(.24)}to{transform:scaleY(1)}}
 .system-track-body{min-width:0;display:grid;gap:2px}
 .system-track-body strong,.system-track-body span,.music>span{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 .system-track-body strong{font-size:1.15em;line-height:1.15}
@@ -184,10 +216,8 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 }
 .system-controls button:disabled,.music-sources button:disabled{opacity:.5}
 .system-controls button:hover:not(:disabled),.music-sources button:hover:not(:disabled){background:var(--line)}
-.system-controls .play{background:var(--music-accent,var(--accent));color:var(--accent-ink,white)}
-.card.music-tinted .system-controls .play{color:#14141a}
-.light .card.music-tinted .system-controls .play{color:white}
-.system-controls .play:hover:not(:disabled){background:var(--music-accent,var(--accent));filter:brightness(.9)}
+.system-controls .play{background:var(--accent);color:var(--accent-ink,white)}
+.system-controls .play:hover:not(:disabled){background:var(--accent);filter:brightness(.9)}
 .music-sources{
   justify-self:end;padding-inline-start:6px;border-inline-start:1px solid color-mix(in srgb,var(--ink) 19%,transparent);
 }
@@ -218,7 +248,7 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .system-track :focus-visible,.music-empty :focus-visible{outline:2px solid var(--music-accent,var(--soft));outline-offset:1px}
 @container music (max-width:320px){
   .system-track{grid-template-columns:minmax(0,1fr) auto;column-gap:5px}
-  .system-cover,.system-track .music-timeline{display:none}
+  .system-cover,.music-meter,.system-track .music-timeline{display:none}
   .system-controls{grid-row:2;grid-column:1}
   .music-sources{grid-row:2;grid-column:2}
   .system-track-body{grid-column:1/-1}
@@ -232,7 +262,7 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 @container music (max-height:64px){
   .card[data-id=music] .inside{padding-block:1px}
   .system-track{grid-template-columns:minmax(0,1fr) auto auto;gap:2px}
-  .system-cover,.system-track .music-timeline{display:none}
+  .system-cover,.music-meter,.system-track .music-timeline{display:none}
   .system-track-body{grid-row:1;grid-column:1;gap:0}
   .system-track-body strong{font-size:.9em;line-height:1}
   .system-track-body .muted{font-size:.75em;line-height:1}
@@ -241,7 +271,8 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   .system-controls button,.music-sources button{min-width:19px;height:20px;padding:0 2px}
 }
 @media (prefers-reduced-motion:reduce){
-  .system-track .music-timeline span{transition:none}
+  .system-track :is(.music-timeline span,.music-tonearm){transition:none}
+  .system-track :is(.music-record-label,.music-meter i){animation:none!important}
 }
 
 .widget-scale {display:grid;gap:8px}
