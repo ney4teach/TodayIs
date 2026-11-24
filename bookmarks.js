@@ -346,11 +346,6 @@ function renderCustomBookmarks(container, preview) {
       preview.dropZone(section, target);
     } else name.textContent = theme.title;
     heading.append(name);
-    if (!preview && theme === themes[0] && state.siteTiles.length) {
-      const search = btn('Поиск по моим ссылкам', '', openBookmarkSearch, 'mini');
-      search.append(icon('search'));
-      heading.append(search);
-    }
     section.append(heading);
     const grid = el('div', 'bookmark-grid');
     for (const site of sites.slice(0, sitesPerTheme)) {

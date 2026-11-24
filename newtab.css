@@ -247,7 +247,6 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 }
 .bookmark-panel .bookmark-theme-heading { padding-inline:min(6px,2cqw); flex:none; min-height:1.5em }
 .bookmark-panel h3 { min-width:0; margin:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:.875em; font-weight:600; color:var(--muted) }
-.bookmark-panel .bookmark-theme-heading .mini { flex:none; min-width:0; padding:2px; margin:0 }
 .bookmark-panel .bookmark-grid {
   flex:1; min-height:0; margin:0; grid-template-columns:repeat(2,minmax(0,1fr));
   grid-template-rows:repeat(2,minmax(0,1fr)); gap:min(6px,3cqw,5cqh); align-content:stretch;
