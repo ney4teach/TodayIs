@@ -451,6 +451,89 @@ function addSearchHistory(form, query) {
   return {trigger, panel, read, remember};
 }
 
+
+function searchSpring(stiffness, damping, duration) {
+  const decay = damping / 2;
+  const frequency = Math.sqrt(stiffness - decay ** 2);
+  return Array.from({length:31}, (_, index) => {
+    if (index === 30) return 1;
+    const time = duration * index / 30000;
+    return 1 - Math.exp(-decay * time) * (Math.cos(frequency * time) + decay / frequency * Math.sin(frequency * time));
+  });
+}
+
+function springySearchField(query) {
+  const field = el('div', 'search-spring-field');
+  const label = el('span', 'search-spring-label');
+  const layer = el('span', 'search-spring-layer');
+  label.setAttribute('aria-hidden', 'true');
+  layer.setAttribute('aria-hidden', 'true');
+  field.append(label, query, layer);
+
+  // DesignBookmark's input-caret and input-morph spring tokens.
+  const caretSpring = searchSpring(700, 32, 360);
+  const labelSpring = searchSpring(300, 20, 520);
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  let previous = query.value;
+  let typing;
+  let floating;
+  function clearTyping() {
+    typing?.cancel();
+    field.classList.remove('spring-typing');
+    layer.replaceChildren();
+  }
+  function sync(animate = false) {
+    clearTyping();
+    const active = query.matches(':focus') || Boolean(query.value);
+    if (field.classList.contains('spring-raised') !== active) {
+      floating?.cancel();
+      field.classList.toggle('spring-raised', active);
+      if (animate && !reduced.matches) {
+        const start = active ? 1 : 0;
+        floating = label.animate(labelSpring.map(progress => {
+          const offset = start + (1 - 2 * start) * progress;
+          return {transform:'translateY(' + 8 * offset + 'px) scale(' + (0.75 + 0.25 * offset) + ')'};
+        }), {duration:520});
+      }
+    }
+    previous = query.value;
+  }
+  query.addEventListener('focus', () => sync(true));
+  query.addEventListener('blur', () => sync(true));
+  query.addEventListener('pointerdown', clearTyping);
+  query.addEventListener('keydown', event => {
+    if (event.ctrlKey || event.metaKey || event.shiftKey || event.key.length > 1) clearTyping();
+  });
+  query.addEventListener('compositionstart', clearTyping);
+  query.addEventListener('input', event => {
+    const before = previous;
+    sync(true);
+    const value = query.value;
+    const character = event.data;
+    if (reduced.matches || event.isComposing || event.inputType !== 'insertText'
+      || !character || [...character].length !== 1 || !/^[\p{L}\p{N} ]$/u.test(character)
+      || value !== before + character || query.selectionStart !== value.length
+      || query.selectionEnd !== value.length || query.scrollLeft) return;
+    const glyph = el('span', 'search-spring-glyph', character);
+    const caret = el('span', 'search-spring-caret');
+    layer.append(document.createTextNode(before), glyph, caret);
+    if (layer.scrollWidth > layer.clientWidth) return clearTyping();
+
+    field.classList.add('spring-typing');
+    glyph.animate([
+      {transform:'translateY(14px) rotate(-16deg) scale(.5)', opacity:0, filter:'blur(3px)', offset:0},
+      {transform:'translateY(-3px) rotate(4deg) scale(1.1)', opacity:1, offset:.55},
+      {transform:'translateY(1px) rotate(-1deg) scale(.98)', offset:.8},
+      {transform:'none', offset:1}
+    ], {duration:500, easing:'cubic-bezier(.2,.8,.2,1)'});
+    const advance = glyph.offsetWidth;
+    caret.animate(caretSpring.map(progress => ({transform:'translateX(' + advance * (progress - 1) + 'px)'})), {duration:360});
+    typing = layer.animate([{opacity:1}, {opacity:1}], {duration:500});
+    typing.onfinish = clearTyping;
+  });
+  return {field, label};
+}
+
 function renderSearch(container) {
   const form = el('form', 'search-bar');
   form.setAttribute('role', 'search');
@@ -467,10 +550,11 @@ function renderSearch(container) {
   picker.append(icon('search'), icon('searchChevron'), engine);
 
   const query = input('', 'search');
+  const {field, label} = springySearchField(query);
   query.autocomplete = 'off';
   query.setAttribute('aria-label', 'Поисковый запрос');
   function updateEngine() {
-    query.placeholder = 'Поиск в ' + engine.value;
+    label.textContent = 'Поиск в ' + engine.value;
     picker.title = 'Поисковик: ' + engine.value;
   }
   engine.addEventListener('change', updateEngine);
@@ -563,7 +647,7 @@ function renderSearch(container) {
     if (item || value) choose(item || {title:value});
     else query.focus();
   });
-  form.append(picker, query, trigger, mic, submit, panel, suggestions.list);
+  form.append(picker, field, trigger, mic, submit, panel, suggestions.list);
   container.append(form, status);
 }
 

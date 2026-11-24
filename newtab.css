@@ -343,3 +343,57 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 }
 .search-suggestion-title {overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
 .search-suggestion small {flex:none}
+
+.search-spring-field {
+  flex:1;
+  min-width:0;
+  position:relative;
+  font-size:1.08em;
+}
+.search-bar .search-spring-field input {
+  display:block;
+  width:100%;
+  min-height:1.9em;
+  padding:.62em 2px 1px;
+  font-size:inherit;
+  line-height:1.2;
+  font-kerning:none;
+}
+.search-spring-label {
+  position:absolute;
+  inset:.05em 2px auto;
+  color:var(--muted);
+  font-size:inherit;
+  line-height:1;
+  transform:translateY(8px);
+  transform-origin:left top;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+  overflow:hidden;
+  pointer-events:none;
+}
+.spring-raised .search-spring-label {transform:scale(.75)}
+.search-spring-layer {
+  position:absolute;
+  inset:.62em 2px 1px;
+  line-height:1.2;
+  font-kerning:none;
+  white-space:pre;
+  overflow:hidden;
+  visibility:hidden;
+  pointer-events:none;
+}
+.spring-typing .search-spring-layer {visibility:visible}
+.search-bar .spring-typing input {color:transparent; caret-color:transparent}
+.search-spring-glyph {display:inline-block; transform-origin:50% 80%}
+.search-spring-caret {
+  display:inline-block;
+  width:1px;
+  height:1em;
+  background:var(--soft);
+  vertical-align:-.12em;
+}
+@media (prefers-reduced-motion:reduce) {
+  .spring-typing .search-spring-layer {visibility:hidden}
+  .search-bar .spring-typing input {color:inherit; caret-color:auto}
+}
