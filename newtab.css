@@ -354,32 +354,37 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   display:block;
   width:100%;
   min-height:1.9em;
-  padding:.62em 2px 1px;
+  padding:.35em 2px;
   font-size:inherit;
   line-height:1.2;
   font-kerning:none;
 }
 .search-spring-label {
   position:absolute;
-  inset:.05em 2px auto;
+  inset:50% 2px auto;
   color:var(--muted);
   font-size:inherit;
   line-height:1;
-  transform:translateY(8px);
-  transform-origin:left top;
+  transform:translateY(-50%);
+  transition:opacity .18s ease, transform .18s ease;
   white-space:nowrap;
   text-overflow:ellipsis;
   overflow:hidden;
   pointer-events:none;
 }
-.spring-raised .search-spring-label {transform:scale(.75)}
+.search-spring-field.has-query .search-spring-label {
+  opacity:0;
+  transform:translateY(calc(-50% - .3em));
+}
 .search-spring-layer {
   position:absolute;
-  inset:.62em 2px 1px;
+  inset:50% 2px auto;
+  height:1.2em;
+  transform:translateY(-50%);
   line-height:1.2;
   font-kerning:none;
   white-space:pre;
-  overflow:hidden;
+  clip-path:inset(-.55em 0);
   visibility:hidden;
   pointer-events:none;
 }
@@ -394,6 +399,7 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   vertical-align:-.12em;
 }
 @media (prefers-reduced-motion:reduce) {
+  .search-spring-label {transition:none}
   .spring-typing .search-spring-layer {visibility:hidden}
   .search-bar .spring-typing input {color:inherit; caret-color:auto}
 }

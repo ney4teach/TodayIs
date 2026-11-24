@@ -472,34 +472,21 @@ function springySearchField(query) {
 
   // DesignBookmark's input-caret and input-morph spring tokens.
   const caretSpring = searchSpring(700, 32, 360);
-  const labelSpring = searchSpring(300, 20, 520);
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   let previous = query.value;
   let typing;
-  let floating;
   function clearTyping() {
     typing?.cancel();
     field.classList.remove('spring-typing');
     layer.replaceChildren();
   }
-  function sync(animate = false) {
+  function sync() {
     clearTyping();
-    const active = query.matches(':focus') || Boolean(query.value);
-    if (field.classList.contains('spring-raised') !== active) {
-      floating?.cancel();
-      field.classList.toggle('spring-raised', active);
-      if (animate && !reduced.matches) {
-        const start = active ? 1 : 0;
-        floating = label.animate(labelSpring.map(progress => {
-          const offset = start + (1 - 2 * start) * progress;
-          return {transform:'translateY(' + 8 * offset + 'px) scale(' + (0.75 + 0.25 * offset) + ')'};
-        }), {duration:520});
-      }
-    }
+    field.classList.toggle('has-query', query.value.length > 0);
     previous = query.value;
   }
-  query.addEventListener('focus', () => sync(true));
-  query.addEventListener('blur', () => sync(true));
+  query.addEventListener('focus', sync);
+  query.addEventListener('blur', sync);
   query.addEventListener('pointerdown', clearTyping);
   query.addEventListener('keydown', event => {
     if (event.ctrlKey || event.metaKey || event.shiftKey || event.key.length > 1) clearTyping();
@@ -507,7 +494,7 @@ function springySearchField(query) {
   query.addEventListener('compositionstart', clearTyping);
   query.addEventListener('input', event => {
     const before = previous;
-    sync(true);
+    sync();
     const value = query.value;
     const character = event.data;
     if (reduced.matches || event.isComposing || event.inputType !== 'insertText'
