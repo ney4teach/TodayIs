@@ -5,7 +5,7 @@ const names = {greeting:'Приветствие',clock:'Часы',search:'Пои
 const ids = Object.keys(names), widths = {xs:1,sm:2,md:3,lg:4,xl:6}, gap = 16, rows = 5;
 const engines = {Google:'https://www.google.com/search?q=',Яндекс:'https://yandex.ru/search/?text=',DuckDuckGo:'https://duckduckgo.com/?q='};
 const quotes = ['Большие дела начинаются с маленького шага.','Оставь сегодня место для любопытства.','Иногда лучшая идея приходит во время прогулки.','Даже короткая пауза помогает увидеть больше.','У каждого дела есть первый черновик.','Найди время для того, что хочется запомнить.'];
-const paths={searchChevron:'m6 9 6 6 6-6',searchMic:'M9 9V5a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0z M5 9a7 7 0 0 0 14 0m-7 7v5m-3 0h6',searchArrow:'M4 12h15m-6-6 6 6-6 6',appearance:'M12 3a9 9 0 1 0 0 18c3 0 3-2 2-3s-1-3 1-3h2a5 5 0 0 0 4-5c0-4-4-7-9-7z M7 11h.1 M10 7h.1 M15 8h.1',account:'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21a8 8 0 0 1 16 0',clock:'M12 8v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',search:'M16 16l5 5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',weather:'M6 18a5 5 0 0 1 0-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8Z',bookmarks:'M6 4h12v17l-6-4-6 4Z',calendar:'M3 6h18v15H3z M3 10h18 M7 3v5m10-5v5',tasks:'M3 6l2 2 3-4m3 3h10 M3 15l2 2 3-4m3 3h10',quote:'M4 11h6v7H3v-6q0-5 6-7 M15 11h6v7h-7v-6q0-5 6-7',music:'M9 17V6l11-3v12 M9 17a3 2 0 1 1-6 0 3 2 0 0 1 6 0 M20 15a3 2 0 1 1-6 0 3 2 0 0 1 6 0',system:'M6 6h12v12H6z M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4',manage:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',sort:'M3 5h17M3 11h12M3 17h6m8-3 3 4 3-4m-3-5v9',settings:'M4 6h16M4 12h16M4 18h16 M9 3v6m7 0v6m-8 0v6'};
+const paths={engineGoogle:'M20 12h-8m8 0v2a8 8 0 1 1-2.4-7.7',engineYandex:'M15.5 21V3H12a4.5 4.5 0 0 0 0 9h3.5M12 12l-5 9',engineDuck:'M8 20l2-5a5 5 0 1 1 7.5-4.3l3 1.3-3.5 2-2 .2L17 20M13.8 9h.1',engineCheck:'m5 12 4 4L19 6',searchChevron:'m6 9 6 6 6-6',searchMic:'M9 9V5a3 3 0 0 1 6 0v4a3 3 0 0 1-6 0z M5 9a7 7 0 0 0 14 0m-7 7v5m-3 0h6',searchArrow:'M4 12h15m-6-6 6 6-6 6',appearance:'M12 3a9 9 0 1 0 0 18c3 0 3-2 2-3s-1-3 1-3h2a5 5 0 0 0 4-5c0-4-4-7-9-7z M7 11h.1 M10 7h.1 M15 8h.1',account:'M16 8a4 4 0 1 1-8 0 4 4 0 0 1 8 0 M4 21a8 8 0 0 1 16 0',clock:'M12 8v5l3 2 M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0',search:'M16 16l5 5 M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0',weather:'M6 18a5 5 0 0 1 0-10 7 7 0 0 1 13 2 4 4 0 0 1 0 8Z',bookmarks:'M6 4h12v17l-6-4-6 4Z',calendar:'M3 6h18v15H3z M3 10h18 M7 3v5m10-5v5',tasks:'M3 6l2 2 3-4m3 3h10 M3 15l2 2 3-4m3 3h10',quote:'M4 11h6v7H3v-6q0-5 6-7 M15 11h6v7h-7v-6q0-5 6-7',music:'M9 17V6l11-3v12 M9 17a3 2 0 1 1-6 0 3 2 0 0 1 6 0 M20 15a3 2 0 1 1-6 0 3 2 0 0 1 6 0',system:'M6 6h12v12H6z M9 2v4m6-4v4M9 18v4m6-4v4M2 9h4m-4 6h4m12-6h4m-4 6h4',manage:'M3 3h7v7H3z M14 3h7v7h-7z M3 14h7v7H3z M14 14h7v7h-7z',sort:'M3 5h17M3 11h12M3 17h6m8-3 3 4 3-4m-3-5v9',settings:'M4 6h16M4 12h16M4 18h16 M9 3v6m7 0v6m-8 0v6'};
 function el(tag,cls,txt){const n=document.createElement(tag);if(cls)n.className=cls;if(txt!==undefined)n.textContent=txt;return n}
 function icon(key){const n=document.createElementNS('http://www.w3.org/2000/svg','svg');for(const [k,v] of Object.entries({viewBox:'0 0 24 24',class:'ico',fill:'none',stroke:'currentColor','stroke-width':1.6,'stroke-linecap':'round','stroke-linejoin':'round','aria-hidden':true}))n.setAttribute(k,v);const p=document.createElementNS(n.namespaceURI,'path');p.setAttribute('d',paths[key]);n.append(p);return n}
 function btn(label,txt,fn,cls=''){const b=el('button',cls,txt);b.type='button';b.title=label;b.setAttribute('aria-label',label);b.onclick=fn;return b}
@@ -253,13 +253,13 @@ function clockFields() {
 }
 
 
-function positionSearchPanel(form, panel) {
+function positionSearchPanel(form, panel, minimumWidth = 260, preferredHeight = 240) {
   const rect = form.getBoundingClientRect();
-  const width = Math.min(Math.max(rect.width, 260), 420, window.innerWidth - 16);
+  const width = Math.min(Math.max(rect.width, minimumWidth), 420, window.innerWidth - 16);
   const left = Math.min(Math.max(rect.left, 8), window.innerWidth - width - 8);
   const below = window.innerHeight - rect.bottom;
   const above = rect.top;
-  const openAbove = below < 240 && above > below;
+  const openAbove = below < preferredHeight && above > below;
   panel.style.width = width + 'px';
   panel.style.left = left + 'px';
   panel.style.top = openAbove ? 'auto' : (rect.bottom + 6) + 'px';
@@ -521,31 +521,134 @@ function springySearchField(query) {
   return {field, label};
 }
 
+
+function searchEngineIcon(name) {
+  return icon({Google:'engineGoogle', Яндекс:'engineYandex', DuckDuckGo:'engineDuck'}[name]);
+}
+
+function addSearchEnginePicker(initialEngine, onChange) {
+  const names = Object.keys(engines);
+  const picker = el('button', 'search-picker');
+  picker.type = 'button';
+  picker.setAttribute('aria-haspopup', 'menu');
+  picker.setAttribute('aria-controls', 'todayis-search-engines');
+  picker.setAttribute('aria-expanded', 'false');
+  const menu = el('div', 'search-history-panel search-engine-menu');
+  menu.id = 'todayis-search-engines';
+  menu.setAttribute('popover', 'auto');
+  menu.setAttribute('role', 'menu');
+  menu.setAttribute('aria-label', 'Поисковые системы');
+  picker.popoverTargetElement = menu;
+
+  const highlight = el('div', 'search-engine-highlight');
+  highlight.setAttribute('aria-hidden', 'true');
+  menu.append(highlight);
+  let value = initialEngine;
+  let motion;
+  let opening;
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)');
+  // DesignBookmark select-open and select-hl.
+  const openSpring = searchSpring(360, 24, 380);
+  const highlightSpring = searchSpring(620, 34, 280);
+  const rows = names.map(name => {
+    const row = el('button', 'search-engine-option');
+    row.type = 'button';
+    row.tabIndex = -1;
+    row.setAttribute('role', 'menuitemradio');
+    row.append(searchEngineIcon(name), el('span', '', name), icon('engineCheck'));
+    menu.append(row);
+    row.addEventListener('pointerenter', () => moveHighlight(row));
+    row.addEventListener('focus', () => moveHighlight(row));
+    row.addEventListener('click', () => {
+      setEngine(name);
+      menu.hidePopover();
+      picker.focus();
+    });
+    return row;
+  });
+
+  function setEngine(name) {
+    value = name;
+    picker.title = 'Поисковик: ' + name;
+    picker.setAttribute('aria-label', 'Выбрать поисковик. Сейчас ' + name);
+    picker.replaceChildren(searchEngineIcon(name), icon('searchChevron'));
+    rows.forEach((row, index) => row.setAttribute('aria-checked', String(names[index] === name)));
+    onChange(name);
+  }
+
+  function moveHighlight(row, animate = true) {
+    const to = row.offsetTop;
+    const transform = getComputedStyle(highlight).transform;
+    const from = transform === 'none' ? to : new DOMMatrix(transform).m42;
+    highlight.style.transform = 'translateY(' + to + 'px)';
+    highlight.style.height = row.offsetHeight + 'px';
+    motion?.cancel();
+    if (animate && !reduced.matches && from !== to) {
+      motion = highlight.animate(highlightSpring.map(progress => ({
+        transform:'translateY(' + (from + (to - from) * progress) + 'px)'
+      })), {duration:280});
+    }
+  }
+
+  menu.addEventListener('beforetoggle', event => {
+    const open = event.newState === 'open';
+    picker.setAttribute('aria-expanded', String(open));
+    if (open) positionSearchPanel(picker, menu, 196, 154);
+    else opening?.cancel();
+  });
+  menu.addEventListener('toggle', event => {
+    if (event.newState !== 'open') return;
+    const selected = rows[names.indexOf(value)];
+    moveHighlight(selected, false);
+    selected.focus({preventScroll:true});
+    if (!reduced.matches) {
+      const direction = menu.style.bottom === 'auto' ? -1 : 1;
+      opening = menu.animate(openSpring.map(progress => ({
+        transform:'translateY(' + direction * 9 * (1 - progress) + 'px) scale(' + (.94 + .06 * progress) + ')',
+        opacity:Math.min(1, progress * 2)
+      })), {duration:380});
+    }
+  });
+  menu.addEventListener('pointerleave', () => {
+    moveHighlight(rows.includes(document.activeElement) ? document.activeElement : rows[names.indexOf(value)]);
+  });
+  function openWithArrow(event) {
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return;
+    event.preventDefault();
+    if (!menu.matches(':popover-open')) menu.showPopover({source:picker});
+  }
+  picker.addEventListener('keydown', openWithArrow);
+  menu.addEventListener('keydown', event => {
+    const index = rows.indexOf(document.activeElement);
+    const last = rows.length - 1;
+    const next = {ArrowDown:(index + 1) % rows.length, ArrowUp:(index + last) % rows.length, Home:0, End:last}[event.key];
+    if (next !== undefined) {
+      event.preventDefault();
+      rows[next].focus();
+    } else if (event.key === 'Tab') {
+      menu.hidePopover();
+      picker.focus();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      menu.hidePopover();
+      picker.focus();
+    }
+  });
+  setEngine(initialEngine);
+  return {picker, menu, get value() {return value;}};
+}
+
 function renderSearch(container) {
   const form = el('form', 'search-bar');
   form.setAttribute('role', 'search');
-
-  const picker = el('label', 'search-picker');
-  const engine = el('select');
-  engine.setAttribute('aria-label', 'Поисковая система для этой вкладки');
-  for (const name of Object.keys(engines)) {
-    const option = el('option', '', name);
-    option.value = name;
-    engine.append(option);
-  }
-  engine.value = state.engine;
-  picker.append(icon('search'), icon('searchChevron'), engine);
 
   const query = input('', 'search');
   const {field, label} = springySearchField(query);
   query.autocomplete = 'off';
   query.setAttribute('aria-label', 'Поисковый запрос');
-  function updateEngine() {
-    label.textContent = 'Поиск в ' + engine.value;
-    picker.title = 'Поисковик: ' + engine.value;
-  }
-  engine.addEventListener('change', updateEngine);
-  updateEngine();
+  const engine = addSearchEnginePicker(state.engine, name => {
+    label.textContent = 'Поиск в ' + name;
+  });
 
   const mic = el('button', 'search-mic');
   mic.type = 'button';
@@ -634,7 +737,7 @@ function renderSearch(container) {
     if (item || value) choose(item || {title:value});
     else query.focus();
   });
-  form.append(picker, field, trigger, mic, submit, panel, suggestions.list);
+  form.append(engine.picker, field, trigger, mic, submit, engine.menu, panel, suggestions.list);
   container.append(form, status);
 }
 
