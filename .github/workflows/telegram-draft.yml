@@ -82,7 +82,7 @@ jobs:
             if (await searchTab.count()) await searchTab.click();
             const select = page.getByLabel('Поисковая система',{exact:true});
             await select.click();
-            await page.waitForFunction(() => [...document.querySelectorAll('select')].some(s => s.matches(':open')));
+            await page.locator('.settings-select-menu:popover-open').waitFor();
             await page.waitForTimeout(450);
             await page.screenshot({
               path:'todayis-settings.png', animations:'disabled',
