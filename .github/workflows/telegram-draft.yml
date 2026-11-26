@@ -7,6 +7,14 @@ on:
         description: Ссылка на PR или релиз Today Is
         required: true
         type: string
+      screenshot:
+        description: Сценарий скриншота
+        type: choice
+        default: auto
+        options:
+          - auto
+          - settings
+          - 'off'
       summary:
         description: Короткое описание для подписчиков, если нужно заменить текст из GitHub
         type: string
@@ -19,21 +27,101 @@ permissions:
   pull-requests: read
 
 jobs:
+  capture:
+    if: inputs.image_url == '' && inputs.screenshot != 'off'
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    outputs:
+      image: ${{ steps.source.outputs.capture }}
+    steps:
+      - name: Выбрать версию для кадра меню
+        id: source
+        uses: actions/github-script@v7
+        env:
+          SOURCE_URL: ${{ inputs.source }}
+          SCREENSHOT: ${{ inputs.screenshot }}
+        with:
+          script: |
+            const match = /^https:\/\/github\.com\/ney4teach\/TodayIs\/pull\/([1-9]\d*)\/?$/.exec(process.env.SOURCE_URL.trim());
+            if (!match) {
+              if (process.env.SCREENSHOT === 'settings') throw new Error('Для кадра настроек укажите PR.');
+              return;
+            }
+            const {data: pr} = await github.rest.pulls.get({owner: 'ney4teach', repo: 'TodayIs', pull_number: Number(match[1])});
+            if (process.env.SCREENSHOT !== 'settings' && pr.head.ref !== 'settings/unified-dropdowns') return;
+            if (pr.head.repo?.full_name !== 'ney4teach/TodayIs' || !/^[a-f0-9]{40}$/.test(pr.head.sha)) throw new Error('Нужен PR из TodayIs.');
+            core.setOutput('ref', pr.head.sha);
+            core.setOutput('capture', 'true');
+      - uses: actions/checkout@v4
+        if: steps.source.outputs.capture == 'true'
+        with:
+          ref: ${{ steps.source.outputs.ref }}
+          path: extension
+          persist-credentials: false
+      - name: Снять раскрытое меню настроек
+        if: steps.source.outputs.capture == 'true'
+        run: |
+          npm install --no-save --no-package-lock playwright@1.58.2
+          npx playwright install --with-deps chromium
+          node --input-type=module <<'NODE'
+          import {resolve} from 'node:path';
+          import {chromium} from 'playwright';
+          const extension = resolve('extension');
+          const context = await chromium.launchPersistentContext('', {
+            channel:'chromium', headless:true, locale:'ru-RU', viewport:{width:1280,height:820},
+            args:['--disable-extensions-except='+extension,'--load-extension='+extension],
+          });
+          try {
+            const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
+            const page = await context.newPage();
+            await page.goto('chrome-extension://'+new URL(worker.url()).hostname+'/newtab.html');
+            const trigger = page.locator('#dock .dock-trigger');
+            if (await trigger.count()) await trigger.hover();
+            await page.getByRole('button',{name:'Настройки',exact:true}).click();
+            const searchTab = page.locator('[data-section="search"]');
+            if (await searchTab.count()) await searchTab.click();
+            const select = page.getByLabel('Поисковая система',{exact:true});
+            await select.click();
+            await page.waitForFunction(() => [...document.querySelectorAll('select')].some(s => s.matches(':open')));
+            await page.waitForTimeout(450);
+            await page.screenshot({
+              path:'todayis-settings.png', animations:'disabled',
+              style:'#panel, #dock {filter:blur(6px) brightness(.65)}',
+            });
+          } finally {
+            await context.close();
+          }
+          NODE
+      - uses: actions/upload-artifact@v4
+        if: steps.source.outputs.capture == 'true'
+        with:
+          name: todayis-settings
+          path: todayis-settings.png
+          if-no-files-found: error
+          retention-days: 3
   preview:
+    needs: capture
+    if: ${{ !cancelled() && (needs.capture.result == 'success' || needs.capture.result == 'skipped') }}
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
+      - uses: actions/download-artifact@v4
+        if: needs.capture.outputs.image == 'true'
+        with:
+          name: todayis-settings
       - name: Отправить черновик в личку
         env:
           SOURCE_URL: ${{ inputs.source }}
           POST_SUMMARY: ${{ inputs.summary }}
           IMAGE_URL: ${{ inputs.image_url }}
+          LOCAL_IMAGE: ${{ needs.capture.outputs.image }}
           GH_TOKEN: ${{ github.token }}
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           CHAT_ID: ${{ secrets.TELEGRAM_PREVIEW_CHAT_ID }}
         run: |
           node --input-type=module <<'NODE'
-          const { SOURCE_URL, POST_SUMMARY, IMAGE_URL, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
+          import {readFile} from 'node:fs/promises';
+          const { SOURCE_URL, POST_SUMMARY, IMAGE_URL, LOCAL_IMAGE, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
           const requestOptions = { signal: AbortSignal.timeout(20000), redirect: 'error' };
 
           async function sendPreview() {
@@ -60,6 +148,22 @@ jobs:
             const image = IMAGE_URL.trim();
             if (image && !/^https:\/\/[^\s]+$/i.test(image)) {
               throw new Error('Для скриншота нужна прямая HTTPS-ссылка.');
+            }
+
+            if (LOCAL_IMAGE === 'true') {
+              const section = /^## Для подписчиков\s*\n([\s\S]*?)(?=^## |$(?![\s\S]))/m.exec(sourceData.body || '');
+              const caption = POST_SUMMARY.trim() || section?.[1].trim() || summary;
+              if (caption.length > 1024) throw new Error('Текст для подписчиков длиннее 1024 символов.');
+              const form = new FormData();
+              form.set('chat_id', CHAT_ID);
+              form.set('caption', caption);
+              form.set('photo', new Blob([await readFile('todayis-settings.png')], {type:'image/png'}), 'todayis-settings.png');
+              const result = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/sendPhoto', {
+                ...requestOptions, method:'POST', body:form,
+              });
+              if (!result.ok || !(await result.json()).ok) throw new Error('Telegram не принял черновик.');
+              console.log('Черновик со скриншотом отправлен в личный чат.');
+              return;
             }
 
             const text = ['Черновик для Today Is', title, summary, sourceData.html_url].join('\n\n');

@@ -208,3 +208,81 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .widget-scale {display:grid;gap:8px}
 .widget-scale input[type="range"] {width:100%;margin:0;padding:0;accent-color:var(--accent);cursor:pointer}
 #widget-scale-value {font-variant-numeric:tabular-nums}
+
+/* Settings menus use the search picker's surface and DesignBookmark select-open spring. */
+@supports (appearance:base-select) {
+  #dialog select,
+  #dialog select::picker(select) {appearance:base-select}
+  #dialog select {
+    width:100%;
+    min-height:40px;
+    gap:10px;
+    padding:9px 12px;
+    border-radius:12px;
+    background:var(--field);
+    color:var(--ink);
+    cursor:pointer;
+    transition:border-color 160ms,background-color 160ms;
+  }
+  #dialog select:hover,
+  #dialog select:open {border-color:var(--soft)}
+  #dialog select::picker-icon {
+    flex:none;
+    color:var(--muted);
+    transition:rotate 200ms;
+  }
+  #dialog select:open::picker-icon {rotate:180deg;color:var(--soft)}
+  #dialog select::picker(select) {
+    margin-block:6px;
+    padding:5px;
+    width:anchor-size(width);
+    max-width:calc(100vw - 24px);
+    max-height:min(320px,60dvh);
+    overflow:auto;
+    scrollbar-width:thin;
+    font:inherit;
+    color:var(--ink);
+    background:var(--glass);
+    border:1px solid var(--line);
+    border-radius:16px;
+    box-shadow:0 12px 36px #0005;
+    backdrop-filter:blur(24px);
+  }
+  #dialog select:open::picker(select) {
+    animation:settings-select-open 380ms linear(0.0000,0.0260,0.0935,0.1883,0.2984,0.4144,0.5291,0.6370,0.7346,0.8198,0.8916,0.9500,0.9955,1.0293,1.0528,1.0675,1.0751,1.0769,1.0744,1.0689,1.0614,1.0529,1.0439,1.0352,1.0269,1.0195,1.0131,1.0077,1.0034,1.0000,1.0000) both;
+  }
+  #dialog select option {
+    display:flex;
+    align-items:center;
+    gap:8px;
+    min-height:36px;
+    padding:7px 8px;
+    border:0;
+    border-radius:10px;
+    color:var(--ink);
+    background:transparent;
+    white-space:normal;
+    overflow-wrap:anywhere;
+    cursor:pointer;
+    transition:background-color 140ms,color 140ms;
+  }
+  #dialog select option:checked {background:color-mix(in srgb,var(--accent) 10%,var(--field))}
+  #dialog select option:hover,
+  #dialog select option:focus-visible {
+    background:color-mix(in srgb,var(--accent) 21%,var(--field));
+    outline-offset:-2px;
+  }
+  #dialog select option::checkmark {order:2;margin-inline-start:auto;color:var(--soft)}
+  #dialog select:disabled,
+  #dialog select option:disabled {opacity:.5;cursor:default}
+}
+@keyframes settings-select-open {
+  from {opacity:0;transform:translateY(-9px) scale(.94)}
+  to {opacity:1;transform:none}
+}
+@media (prefers-reduced-motion:reduce) {
+  #dialog select,
+  #dialog select::picker-icon,
+  #dialog select option {transition:none}
+  #dialog select:open::picker(select) {animation:none}
+}
