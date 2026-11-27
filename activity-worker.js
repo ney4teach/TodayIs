@@ -1,4 +1,6 @@
 const DAY = 86400000;
+const PERIODS = [1, 7, 30];
+const RETENTION = PERIODS.at(-1) * DAY;
 const KEY = 'siteActivity';
 const ALARM = 'site-activity-minute';
 let pending = Promise.resolve();
@@ -15,20 +17,22 @@ async function activeHost() {
 }
 
 function advance(previous, session, host, now) {
-  const cutoff = now - DAY;
+  const cutoff = now - RETENTION;
   const spans = (previous?.spans || []).filter(s => s.end > cutoff);
   if (spans.length) spans[0].start = Math.max(spans[0].start, cutoff);
   const cursor = previous?.cursor;
+  const since = Math.max(cutoff, previous?.since ?? previous?.spans?.[0]?.start ?? cursor?.time ?? now);
   if (cursor?.session === session && cursor.host && now > cursor.time) {
     // After a long gap the device may have slept. Credit at most one heartbeat.
     const end = now - cursor.time <= 90000 ? now : cursor.time + 60000;
     const start = Math.max(cursor.time, cutoff);
-    if (end <= start) return {spans, cursor:{host, time:now, session}};
-    const last = spans.at(-1);
-    if (last?.host === cursor.host && last.end === start) last.end = end;
-    else spans.push({host:cursor.host, start, end});
+    if (end > start) {
+      const last = spans.at(-1);
+      if (last?.host === cursor.host && last.end === start) last.end = end;
+      else spans.push({host:cursor.host, start, end});
+    }
   }
-  return {spans, cursor:{host, time:now, session}};
+  return {spans, since, cursor:{host, time:now, session}};
 }
 function sample() {
   const now = Date.now();
@@ -42,7 +46,7 @@ function sample() {
     const previous = (await chrome.storage.local.get(KEY))[KEY];
     const next = advance(previous, activitySession, await host, now);
     await chrome.storage.local.set({[KEY]:next});
-    return next.spans;
+    return next;
   });
   pending = run.catch(error => console.error('Учёт времени', error));
   return run;
@@ -52,12 +56,22 @@ chrome.tabs.onUpdated.addListener((id, change, tab) => {if (tab.active && change
 chrome.windows.onFocusChanged.addListener(sample);
 chrome.idle.onStateChanged.addListener(sample);
 chrome.alarms.onAlarm.addListener(alarm => {if (alarm.name === ALARM) sample()});
+
+function summarize(spans, cutoff) {
+  const totals = new Map();
+  for (const {host,start,end} of spans) {
+    const elapsed = end - Math.max(start,cutoff);
+    if (elapsed > 0) totals.set(host,(totals.get(host) || 0) + elapsed);
+  }
+  return [...totals].sort((a,b) => b[1] - a[1]);
+}
+
 chrome.runtime.onMessage.addListener((message, sender, reply) => {
   if (message?.type !== 'activity-summary') return;
-  sample().then(spans => {
-    const totals = new Map();
-    for (const {host,start,end} of spans) totals.set(host,(totals.get(host)||0)+end-start);
-    reply([...totals].sort((a,b)=>b[1]-a[1]));
+  sample().then(({spans,since,cursor}) => {
+    if (!message.periods) return reply(summarize(spans,cursor.time - DAY));
+    const summaries = Object.fromEntries(PERIODS.map(days => [days,summarize(spans,cursor.time - days * DAY)]));
+    reply({summaries,since,now:cursor.time});
   }, () => reply(null));
   return true;
 });
