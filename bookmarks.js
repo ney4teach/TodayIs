@@ -39,11 +39,17 @@ async function bookmarks() {
   if (dialog.open && activeDialog === 'settings' && settingsPage === 'bookmarks') showSettings('bookmarks');
 }
 
+const themeLimit = 4;
+const sitesPerTheme = 4;
+
 function bookmarkFields() {
   selectField('Содержимое панели', [['custom', 'Мои темы'], ['browser', 'Закладки браузера']],
     state.bookmarkSource, value => change(s => { s.bookmarkSource = value; }));
   if (state.bookmarkSource === 'custom') {
-    fields.append(btn('Добавить тему', 'Добавить тему', () => editCustomBookmark()));
+    const addTheme = btn('Добавить тему', 'Добавить тему', () => editCustomBookmark());
+    addTheme.disabled = state.linkCategories.length >= themeLimit;
+    fields.append(el('small', '', 'До 4 тем, по 4 сайта в каждой'), addTheme);
+    if (state.siteTiles.length) fields.append(btn('Поиск по всем моим ссылкам', 'Найти сайт', openBookmarkSearch));
     for (const theme of state.linkCategories) {
       const row = el('div', 'bookmark-settings-row');
       const group = el('section', 'bookmark-settings-group');
@@ -56,7 +62,9 @@ function bookmarkFields() {
         entry.append(details, deleteBookmarkButton(site, false));
         group.append(entry);
       }
-      group.append(btn('Добавить сайт в тему «' + theme.title + '»', 'Добавить сайт', () => editCustomBookmark(theme.id)));
+      const addSite = btn('Добавить сайт в тему «' + theme.title + '»', 'Добавить сайт', () => editCustomBookmark(theme.id));
+      addSite.disabled = state.siteTiles.filter(site => site.categoryId === theme.id).length >= sitesPerTheme;
+      group.append(addSite);
       fields.append(group);
     }
     return;
@@ -147,7 +155,13 @@ function renderBookmarks(container) {
     container.append(el('small', '', bookmarkStatus || 'В этой папке пока пусто'));
     return;
   }
-  const grid = el('div', 'bookmark-grid');
+  const grid = el('div', 'bookmark-grid bookmark-folder-grid');
+  const count = children.length;
+  // Scale gutters down for large browser folders as well as for small cards.
+  grid.style.setProperty('--folder-gap', (8 / Math.ceil(Math.sqrt(count))) + 'cqmin');
+  for (const [name, ratio] of [['square', 1], ['wide', 2.5], ['tall', 0.5]]) {
+    grid.style.setProperty('--' + name, Math.min(count, Math.ceil(Math.sqrt(count * ratio))));
+  }
   for (const node of children) grid.append(bookmarkTile(node, id => {
     bookmarkTrail.push(id);
     drawOne('bookmarks');
@@ -196,7 +210,11 @@ function renderCustomBookmarks(container) {
   }
   const groups = new Map(state.linkCategories.map(theme => [theme.id, []]));
   for (const site of state.siteTiles) groups.get(site.categoryId)?.push(site);
-  for (const theme of state.linkCategories) {
+  const themes = state.linkCategories.slice(0, themeLimit);
+  const panel = el('div', 'bookmark-panel');
+  panel.style.setProperty('--themes', themes.length);
+  container.append(panel);
+  for (const theme of themes) {
     const section = el('section', 'bookmark-theme');
     const heading = el('div', 'bookmark-theme-heading');
     heading.append(el('h3', '', theme.title));
@@ -207,9 +225,13 @@ function renderCustomBookmarks(container) {
     }
     section.append(heading);
     const grid = el('div', 'bookmark-grid');
-    for (const site of groups.get(theme.id)) grid.append(bookmarkTile(site));
+    for (const site of groups.get(theme.id).slice(0, sitesPerTheme)) {
+      const tile = bookmarkTile(site);
+      tile.setAttribute('aria-label', site.title + ' · ' + theme.title);
+      grid.append(tile);
+    }
     if (grid.childElementCount) section.append(grid);
-    container.append(section);
+    panel.append(section);
   }
 }
 function editCustomBookmark(categoryId) {
@@ -252,8 +274,11 @@ function editCustomBookmark(categoryId) {
     await change(s => {
       if (addingSite) {
         if (!s.linkCategories.some(item => item.id === categoryId)) throw Error('Тема больше недоступна');
-        if (!s.siteTiles.some(item => item.id === id)) s.siteTiles.push({id, categoryId, title:name, url:href});
+        if (s.siteTiles.some(item => item.id === id)) return;
+        if (s.siteTiles.filter(item => item.categoryId === categoryId).length >= sitesPerTheme) throw Error('В теме уже 4 сайта');
+        s.siteTiles.push({id, categoryId, title:name, url:href});
       } else if (!s.linkCategories.some(item => item.id === id)) {
+        if (s.linkCategories.length >= themeLimit) throw Error('Уже добавлены 4 темы');
         s.linkCategories.push({id, title:name});
       }
     });
