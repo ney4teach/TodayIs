@@ -271,6 +271,9 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   .bookmark-remove { opacity:1 }
 }
 .bookmark-add-site .bookmark-mark { border:1px dashed currentColor }
+@media (hover:hover) {
+  .bookmark-panel .bookmark-add-site:not(:hover):not(:focus-visible) { opacity:0 }
+}
 dialog.bookmark-confirm { width:min(320px,92vw) }
 .bookmark-confirm p { overflow-wrap:anywhere }
 .bookmark-confirm .bookmark-actions { justify-content:flex-end }

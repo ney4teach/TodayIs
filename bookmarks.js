@@ -335,7 +335,6 @@ function renderCustomBookmarks(container, preview) {
   const groups = new Map(state.linkCategories.map(theme => [theme.id, []]));
   for (const site of state.siteTiles) groups.get(site.categoryId)?.push(site);
   const themes = preview ? state.linkCategories : state.linkCategories.slice(0, themeLimit);
-  const firstVacancy = themes.find(theme => groups.get(theme.id).length < sitesPerTheme);
   const panel = el('div', preview ? 'bookmark-editor-grid' : 'bookmark-panel');
   container.append(panel);
   for (const theme of themes) {
@@ -365,7 +364,7 @@ function renderCustomBookmarks(container, preview) {
         grid.append(entry);
       } else grid.append(tile);
     }
-    if (preview ? sites.length < sitesPerTheme : theme === firstVacancy) {
+    if (sites.length < sitesPerTheme) {
       const label = 'Добавить сайт в тему «' + theme.title + '»';
       const add = btn(label, '', () => editCustomBookmark(theme.id, !preview), 'bookmark-tile bookmark-add-site');
       const mark = el('span', 'bookmark-mark', '＋');

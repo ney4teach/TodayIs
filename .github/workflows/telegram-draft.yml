@@ -87,7 +87,7 @@ jobs:
               const themes = {
                 'Работа': ['github.com', 'figma.com', 'docs.google.com'],
                 'Музыка': ['music.yandex.ru', 'soundcloud.com', 'bandcamp.com', 'open.spotify.com'],
-                'Почитать': ['habr.com', 'wikipedia.org', 'medium.com', 'arxiv.org'],
+                'Почитать': ['habr.com', 'wikipedia.org', 'medium.com'],
                 'Отдых': ['youtube.com', 'twitch.tv', 'steampowered.com', 'kinopoisk.ru'],
               };
               const records = {'gntd.bookmarkSource':'custom'};
@@ -103,11 +103,9 @@ jobs:
             });
             const page = await context.newPage();
             await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
-            await page.locator('#board [data-id="bookmarks"] .bookmark-add-site').waitFor();
-            await page.evaluate(() => showSettings('bookmarks'));
-            const preview = page.locator('.bookmark-preview');
-            await preview.getByRole('button', {name:'github.com · Работа', exact:true}).hover();
-            await preview.screenshot({path:'todayis-bookmarks.png',animations:'disabled'});
+            const card = page.locator('#board [data-id="bookmarks"]');
+            await card.getByRole('button', {name:'Добавить сайт в тему «Работа»', exact:true}).hover();
+            await card.screenshot({path:'todayis-bookmarks.png',animations:'disabled'});
           } finally {
             await context.close();
           }
