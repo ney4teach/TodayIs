@@ -3,15 +3,33 @@ name: Подготовить пост
 on:
   workflow_dispatch:
     inputs:
+      destination:
+        description: Куда отправить пост
+        type: choice
+        default: preview
+        options:
+          - preview
+          - channel
       source:
         description: Ссылка на PR или релиз Today Is
         required: true
         type: string
+      screenshot:
+        description: Сценарий автоматического скриншота
+        type: choice
+        default: auto
+        options:
+          - auto
+          - new-tab
+          - search
+          - activity
+          - calendar
+          - wallpaper-accent
       summary:
         description: Короткое описание для подписчиков, если нужно заменить текст из GitHub
         type: string
       image_url:
-        description: Прямая HTTPS-ссылка на скриншот (необязательно)
+        description: Прямая HTTPS-ссылка, если нужно заменить автоматический скриншот
         type: string
 
 permissions:
@@ -19,26 +37,316 @@ permissions:
   pull-requests: read
 
 jobs:
+  screenshot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Определить версию расширения
+        if: inputs.image_url == ''
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_URL: ${{ inputs.source }}
+          SCREENSHOT: ${{ inputs.screenshot }}
+        run: |
+          node --input-type=module <<'NODE'
+          const source = /^https:\/\/github\.com\/ney4teach\/TodayIs\/(?:pull\/([1-9]\d*)|releases\/tag\/([^?#\s]+?))\/?$/i
+            .exec(process.env.SOURCE_URL.trim());
+          if (!source) throw new Error('Укажите ссылку на PR или релиз Today Is.');
+          const tag = source[2] && decodeURIComponent(source[2]);
+          const endpoint = source[1] ? 'pulls/' + source[1] : 'releases/tags/' + encodeURIComponent(tag);
+          const response = await fetch('https://api.github.com/repos/ney4teach/TodayIs/' + endpoint, {
+            signal: AbortSignal.timeout(20000),
+            headers: { Authorization: 'Bearer ' + process.env.GH_TOKEN, Accept: 'application/vnd.github+json' },
+          });
+          if (!response.ok) throw new Error('GitHub не вернул источник. HTTP ' + response.status);
+          const data = await response.json();
+          if (source[1] && (data.head?.repo?.full_name !== 'ney4teach/TodayIs' || !/^[a-f0-9]{40}$/.test(data.head.sha))) {
+            throw new Error('Для скриншота выберите PR из ветки репозитория Today Is.');
+          }
+          const ref = source[1] ? data.head.sha : 'refs/tags/' + data.tag_name;
+          if (!ref || /\s/.test(ref)) throw new Error('Не удалось определить версию расширения.');
+          const { appendFileSync } = await import('node:fs');
+          const branch = data.head?.ref || '';
+          const inferred = /(?:^|\/)search(?:[-/]|$)/i.test(branch) ? 'search'
+            : /^clock\/activity(?:-|$)/i.test(branch) ? 'activity'
+            : /(?:^|\/)calendar(?:[-/]|$)/i.test(branch) ? 'calendar'
+            : /(?:^|\/)wallpaper[-/]accent(?:[-/]|$)/i.test(branch) ? 'wallpaper-accent'
+            : 'new-tab';
+          const requested = process.env.SCREENSHOT;
+          const supported = ['new-tab', 'search', 'activity', 'calendar', 'wallpaper-accent'];
+          const declared = /<!--\s*telegram-screenshot:\s*([\w-]+)\s*-->/i.exec(data.body || '')?.[1];
+          if (declared && !supported.includes(declared)) throw new Error('Неизвестный сценарий Telegram: ' + declared);
+          const scenario = supported.includes(requested) ? requested : (declared || inferred);
+          appendFileSync(process.env.GITHUB_OUTPUT, 'ref=' + ref + '\nscenario=' + scenario + '\n');
+          NODE
+      - uses: actions/checkout@v4
+        if: inputs.image_url == ''
+        with:
+          ref: ${{ steps.source.outputs.ref }}
+          persist-credentials: false
+          path: extension
+      - name: Установить Chromium
+        if: inputs.image_url == ''
+        run: |
+          npm install --no-save --no-package-lock playwright@1.58.2
+          npx playwright install --with-deps chromium
+      - name: Сделать скриншот Today Is
+        if: inputs.image_url == ''
+        env:
+          SCREENSHOT_SCENARIO: ${{ steps.source.outputs.scenario }}
+        run: |
+          node --input-type=module <<'NODE'
+          import { resolve } from 'node:path';
+          import { chromium } from 'playwright';
+
+          const extension = resolve('extension');
+          const context = await chromium.launchPersistentContext('', {
+            channel: 'chromium',
+            headless: true,
+            viewport: { width: 1440, height: 960 },
+            locale: 'ru-RU',
+            args: ['--disable-extensions-except=' + extension, '--load-extension=' + extension],
+          });
+          try {
+            const worker = context.serviceWorkers()[0] ??
+              await context.waitForEvent('serviceworker', { timeout: 15000 });
+            const scenario = process.env.SCREENSHOT_SCENARIO;
+            if (scenario === 'activity') {
+              await worker.evaluate(async () => {
+                const day = 86400000;
+                const now = Date.now();
+                const spans = [
+                  ['reddit.com', 12, 110], ['figma.com', 5, 85], ['t.me', 4, 48],
+                  ['youtube.com', 3, 125], ['github.com', 2, 160], ['open-meteo.com', 1.5, 35],
+                  ['youtube.com', .5, 52], ['github.com', .25, 30],
+                ].map(([host, ago, minutes]) => ({host, start: now - ago * day, end: now - ago * day + minutes * 60000}));
+                await chrome.storage.local.set({siteActivity: {spans, since: now - 30 * day}});
+              });
+            }
+            const page = await context.newPage();
+            page.setDefaultTimeout(15000);
+            if (scenario === 'calendar') await page.clock.setFixedTime(new Date(2026, 10, 2, 12));
+            await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
+            await page.locator('#board [data-id]').first().waitFor({ state: 'visible' });
+
+            if (scenario === 'search') {
+              const form = page.locator('.search-bar');
+              const query = form.locator('input[type="search"]');
+              const style = [
+                '#board > [data-id]:not([data-id="search"]) { filter: blur(5px) brightness(.65); }',
+                '#board > [data-id="search"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
+              ];
+              const capture = (number, emphasis) => page.screenshot({
+                path: 'todayis-preview-0' + number + '.png',
+                animations: 'disabled',
+                style: [...style, emphasis + ' { outline: 2px solid var(--accent, #a89cff); outline-offset: 3px; }'].join('\n'),
+              });
+              await page.evaluate(async () => {
+                localStorage.setItem('todayis.searchHistory', JSON.stringify([
+                  'Дизайн стартовой страницы браузера: доступность, удобная навигация и полезные виджеты для работы',
+                  'Дизайн интерфейсов',
+                ]));
+                await chrome.bookmarks.create({ title: 'Дизайн — справочник MDN', url: 'https://developer.mozilla.org/' });
+                await bookmarks();
+              });
+              await page.waitForFunction(() => bookmarkSites.some((site) => site.title === 'Дизайн — справочник MDN'));
+              await form.locator('.search-history-trigger').click();
+              await form.locator('.search-history-query').first().waitFor();
+              await capture(1, 'section.search-history-panel:popover-open');
+              await page.keyboard.press('Escape');
+
+              await query.fill('Дизайн');
+              const suggestions = form.locator('.search-suggestions');
+              await suggestions.getByText('Закладка', { exact: true }).waitFor();
+              await query.press('ArrowDown');
+              await suggestions.locator('[aria-selected="true"]').waitFor();
+              await capture(2, '.search-suggestions:popover-open');
+
+              await query.fill('developer.mozilla.org');
+              await query.press('Escape');
+              await capture(3, '.search-bar input[type="search"]');
+            } else if (scenario === 'activity') {
+              const dialog = page.locator('#dialog');
+              const clock = page.locator('#board > [data-id="clock"]');
+              const mosaic = clock.locator('.activity-button');
+              const openClockSettings = async () => {
+                await page.locator('#dock button').last().click();
+                await dialog.locator('[data-page="widgets"]').click();
+                await dialog.locator('[data-page="clock"]').click();
+              };
+              await mosaic.locator('.activity-mosaic-block').first().waitFor();
+              await openClockSettings();
+              const center = dialog.locator('select:has(option[value="mascot"])');
+              await center.selectOption('mascot');
+              await clock.locator('img[data-center="mascot"]').waitFor({ state: 'attached' });
+              const modalStyle = '#panel, #dock { filter: blur(6px) brightness(.65); }';
+              await page.screenshot({
+                path: 'todayis-preview-03.png', animations: 'disabled',
+                style: modalStyle + ' #dialog select:has(option[value="mascot"]) { outline: 2px solid var(--accent, #a89cff); }',
+              });
+              await dialog.locator('#close').click();
+              await clock.locator('img[data-center="mascot"]').evaluate((img) => img.decode());
+              await page.screenshot({
+                path: 'todayis-preview-01.png', animations: 'disabled',
+                style: [
+                  '#board > [data-id]:not([data-id="clock"]), #dock { filter: blur(5px) brightness(.65); }',
+                  '#board > [data-id="clock"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
+                ].join('\n'),
+              });
+              await mosaic.click();
+              await dialog.getByRole('button', { name: '7 дней', exact: true }).click();
+              await dialog.locator('summary').filter({ hasText: 'Работа и учёба' }).click();
+              await dialog.getByText('github.com', { exact: true }).waitFor();
+              await page.screenshot({
+                path: 'todayis-preview-02.png', animations: 'disabled',
+                style: modalStyle + ' #dialog details[open] { outline: 2px solid var(--accent, #a89cff); }',
+              });
+            } else if (scenario === 'calendar') {
+              const dialog = page.locator('#dialog');
+              const calendar = page.locator('#board [data-id="calendar"]');
+              const openCalendar = calendar.getByRole('button', { name: 'Открыть календарь', exact: true });
+              await openCalendar.click();
+              await dialog.getByRole('button', { name: 'Создать график', exact: true }).click();
+              await dialog.locator('.calendar-preview-day.calendar-type-day').first().waitFor();
+              await dialog.locator('.calendar-preview-day.calendar-type-off').first().waitFor();
+              const modalStyle = '#panel, #dock { filter: blur(6px) brightness(.6); }';
+              const editorStyle = modalStyle +
+                ' #dialog[data-view="calendar-editor"] { width: min(960px, 94vw); }' +
+                ' #dialog .calendar-cycle { grid-template-columns: repeat(2, minmax(0, 1fr)); }';
+              await page.screenshot({ path: 'todayis-preview-02.png', animations: 'disabled', style: editorStyle });
+
+              await dialog.getByRole('button', { name: 'Сохранить график', exact: true }).click();
+              await calendar.locator('.calendar-day.calendar-type-day').first().waitFor({ state: 'attached' });
+              await calendar.locator('.calendar-day.calendar-type-off').first().waitFor({ state: 'attached' });
+              // Older calendar revisions save the schedule without leaving the editor.
+              if (await dialog.locator('.calendar-form').count()) await dialog.locator('#close').click();
+              if (!(await dialog.isVisible())) await openCalendar.click();
+              await dialog.locator('.calendar-day.calendar-type-day').first().waitFor();
+              await dialog.locator('.calendar-day.calendar-type-off').first().waitFor();
+              await page.screenshot({ path: 'todayis-preview-03.png', animations: 'disabled', style: modalStyle });
+
+              await dialog.locator('#close').click();
+              await calendar.locator('.calendar-day.calendar-type-day').first().waitFor();
+              await page.screenshot({
+                path: 'todayis-preview-01.png',
+                animations: 'disabled',
+                style: [
+                  '#board > [data-id]:not([data-id="calendar"]), #dock { filter: blur(6px) brightness(.6); }',
+                  '#board > [data-id="calendar"] { outline: 2px solid var(--accent, #a89cff); outline-offset: 6px; }',
+                ].join('\n'),
+              });
+            } else {
+              if (scenario === 'wallpaper-accent') {
+                await page.locator('#dock button').last().click();
+                await page.locator('[data-page="appearance"]').click();
+                await page.locator('.wallpaper-file').setInputFiles(resolve(extension, 'wallpapers/aurora.svg'));
+                await page.waitForFunction(() => document.body.style.backgroundImage.includes('data:image/'));
+                await page.locator('#accent-mode').selectOption('manual');
+                await page.locator('.accent-swatch').last().click();
+                await page.locator('.accent-swatch').last().locator('input:checked').waitFor({ state: 'attached' });
+              }
+              await page.screenshot({ path: 'todayis-preview.png', animations: 'disabled' });
+            }
+          } finally {
+            await context.close();
+          }
+          NODE
+      - name: Получить скриншот по ссылке
+        if: inputs.image_url != ''
+        env:
+          IMAGE_URL: ${{ inputs.image_url }}
+        run: |
+          curl --fail --silent --show-error --location --max-redirs 4 \
+            --proto '=https' --proto-redir '=https' --max-time 30 --max-filesize 10000000 \
+            --output todayis-preview.png -- "$IMAGE_URL"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          path: branding
+          sparse-checkout: .github/branding
+      - name: Добавить логотип в правый нижний угол
+        shell: bash
+        run: |
+          if ! command -v convert >/dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y imagemagick
+          fi
+          base64 --decode branding/.github/branding/todayis-watermark.png.base64 > logo.png
+          for frame in todayis-preview*.png; do
+            read -r width height < <(identify -ping -format '%w %h\n' "$frame[0]")
+            short_side=$(( width < height ? width : height ))
+            logo_width=$(( short_side * 14 / 100 + 1 ))
+            inset=$(( short_side * 3 / 100 ))
+            convert logo.png -channel A -level '25%,90%' +channel -trim +repage -resize "${logo_width}x" logo-sized.png
+            convert "$frame[0]" logo-sized.png -gravity southeast \
+              -geometry "+${inset}+${inset}" -composite PNG:todayis-branded.png
+            mv todayis-branded.png "$frame"
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: todayis-screenshot
+          path: todayis-preview*.png
+          if-no-files-found: error
+          retention-days: 3
+
   preview:
+    needs: screenshot
     runs-on: ubuntu-latest
     timeout-minutes: 3
     steps:
-      - name: Отправить черновик в личку
+      - uses: actions/download-artifact@v4
+        with:
+          name: todayis-screenshot
+      - name: Отправить пост в Telegram
         env:
           SOURCE_URL: ${{ inputs.source }}
           POST_SUMMARY: ${{ inputs.summary }}
-          IMAGE_URL: ${{ inputs.image_url }}
           GH_TOKEN: ${{ github.token }}
           BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ secrets.TELEGRAM_PREVIEW_CHAT_ID }}
+          PREVIEW_CHAT_ID: ${{ secrets.TELEGRAM_PREVIEW_CHAT_ID }}
+          POST_DESTINATION: ${{ inputs.destination }}
         run: |
           node --input-type=module <<'NODE'
-          const { SOURCE_URL, POST_SUMMARY, IMAGE_URL, GH_TOKEN, BOT_TOKEN, CHAT_ID } = process.env;
+          import { readFile, readdir } from 'node:fs/promises';
+
+          const { SOURCE_URL, POST_SUMMARY, GH_TOKEN, BOT_TOKEN, PREVIEW_CHAT_ID, POST_DESTINATION } = process.env;
           const requestOptions = { signal: AbortSignal.timeout(20000), redirect: 'error' };
 
-          async function sendPreview() {
-            if (!BOT_TOKEN || !/^[1-9]\d*$/.test(CHAT_ID ?? '')) {
-              throw new Error('Проверьте токен бота и положительный ID личного чата в секретах GitHub.');
+          const completedActions = {
+            добавить: 'добавили',
+            обновить: 'обновили',
+            исправить: 'исправили',
+            улучшить: 'улучшили',
+            изменить: 'изменили',
+            переделать: 'переделали',
+            переработать: 'переработали',
+            убрать: 'убрали',
+            удалить: 'удалили',
+            починить: 'починили',
+            вернуть: 'вернули',
+            восстановить: 'восстановили',
+            настроить: 'настроили',
+            включить: 'включили',
+            отключить: 'отключили',
+            упростить: 'упростили',
+            сделать: 'сделали',
+          };
+
+          function postTitle(title) {
+            return title.replace(/^([а-яё]+)(?=\s|[!?.:]|$)/iu, (word) => {
+              const completed = completedActions[word.toLowerCase()];
+              return completed ? completed[0].toUpperCase() + completed.slice(1) : word;
+            });
+          }
+
+          async function sendPost() {
+            const channel = '@todayisdesk';
+            const publish = POST_DESTINATION === 'channel';
+            const chatId = publish ? channel : PREVIEW_CHAT_ID;
+            if (!BOT_TOKEN) throw new Error('Добавьте TELEGRAM_BOT_TOKEN в секреты GitHub.');
+            if (!publish && !/^[1-9]\d*$/.test(chatId ?? '')) {
+              throw new Error('Проверьте TELEGRAM_PREVIEW_CHAT_ID в секретах GitHub.');
             }
 
             const source = /^https:\/\/github\.com\/ney4teach\/TodayIs\/(pull\/([1-9]\d*)|releases\/tag\/([^?#\s]+))\/?$/i
@@ -54,41 +362,90 @@ jobs:
             if (!response.ok) throw new Error('GitHub не вернул источник. HTTP ' + response.status);
             const sourceData = await response.json();
             const title = (sourceData.title || sourceData.name || sourceData.tag_name).trim();
-            const summary = POST_SUMMARY.trim() || sourceData.body?.trim();
-            if (!summary) throw new Error('В источнике нет описания. Заполните поле summary.');
+            const body = (sourceData.body || '').replace(/<!--[\s\S]*?-->/g, '');
+            const images = /!\[[^\]\n]*\]\((https:\/\/[^)\s]+)[^)\n]*\)|<img\b[^>]*\bsrc=["'](https:\/\/[^"'\s]+)["'][^>]*>/gi;
+            const frames = (await readdir('.')).filter((file) => /^todayis-preview(?:-\d{2})?\.png$/.test(file)).sort();
+            if (frames.length < 1 || frames.length > 10) throw new Error('Нужно от одного до десяти кадров.');
 
-            const image = IMAGE_URL.trim();
-            if (image && !/^https:\/\/[^\s]+$/i.test(image)) {
-              throw new Error('Для скриншота нужна прямая HTTPS-ссылка.');
+            const cleanBody = body.replace(images, '');
+            const notes = /^#{1,6}\s+(?:для подписчиков|что изменилось|изменения|что нового|summary|changes)\s*\r?$\n([\s\S]*?)(?=^#{1,6}\s|(?![\s\S]))/im.exec(cleanBody)?.[1];
+            const intro = cleanBody.split(/^#{1,6}[ \t]+/m)[0]
+              .split(/\r?\n[ \t]*\r?\n/)
+              .filter((paragraph) => !/^(?:в\s+)?(?:\x60?AGENTS\.md\x60?(?=\s|[.,:;]|$)|провер(?:ен[аоы]?|к[аиу])(?=\s|[.,:;]|$)|тесты(?=\s|[.,:;]|$)|git revert(?=\s|[.,:;]|$)|tests?(?=\s|[.,:;]|$)|verification(?=\s|[.,:;]|$))/iu.test(
+                paragraph.trim().replace(/^(?:[-*]\s+|\*\*)/, ''),
+              ))
+              .join('\n\n');
+            const summary = (POST_SUMMARY.trim() || notes?.trim() || intro)
+              .replace(/^\s*[-*][ \t]+/gm, '• ')
+              .replace(/\[([^\]\n]+)\]\(https?:\/\/[^)\n]+\)/g, '$1')
+              .replace(/https?:\/\/\S+/g, '')
+              .replace(/\x60/g, '').trim();
+
+            const points = summary
+              .split(/\n(?=• )|\n[ \t]*\n/)
+              .map((point) => point.replace(/^• /, '').replace(/\s*\n\s*/g, ' ').trim())
+              .filter(Boolean);
+            if (points.length !== frames.length) {
+              throw new Error('Пунктов в анонсе: ' + points.length + ', кадров: ' + frames.length +
+                '. Подготовьте по одному кадру на пункт и сохраните одинаковый порядок.');
             }
-
-            const text = ['Черновик для Today Is', title, summary, sourceData.html_url].join('\n\n');
-            if (text.length > (image ? 1024 : 4096)) {
+            const bullets = points.map((point) => '• ' + point).join('\n');
+            const heading = '✨ ' + postTitle(title);
+            if ([heading, bullets.replace(/\*\*|__/g, '')].join('\n\n').length > 1024) {
               throw new Error('Черновик слишком длинный. Сократите его через поле summary.');
             }
-            const payload = image
-              ? { chat_id: CHAT_ID, photo: image, caption: text }
-              : { chat_id: CHAT_ID, text, link_preview_options: { is_disabled: true } };
+            const escape = (text) => text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            const emphasis = /(\*\*|__)(\S(?:.*?\S)?)\1/g;
+            const formattedSummary = bullets.split('\n').map((line) => {
+              const escaped = escape(line);
+              const highlighted = escaped.replace(emphasis, '<b>$2</b>');
+              if (highlighted !== escaped || !line.startsWith('• ')) return highlighted;
+              const firstSentence = /^• (.+?(?:[.!?](?=\s|$)|$))/.exec(line);
+              if (!firstSentence) return highlighted;
+              return '• <b>' + escape(firstSentence[1]) + '</b>' + escape(line.slice(firstSentence[0].length));
+            }).join('\n');
+            const text = '<b>' + escape(heading) + '</b>' + '\n\n' + formattedSummary;
+            const form = new FormData();
+            form.set('chat_id', chatId);
+            const album = frames.length > 1;
+            if (album) {
+              const media = [];
+              for (const [index, frame] of frames.entries()) {
+                const key = 'frame' + index;
+                form.set(key, new Blob([await readFile(frame)], { type: 'image/png' }), frame);
+                const photo = { type: 'photo', media: 'attach://' + key };
+                if (index === 0) Object.assign(photo, { caption: text, parse_mode: 'HTML' });
+                media.push(photo);
+              }
+              form.set('media', JSON.stringify(media));
+            } else {
+              form.set('parse_mode', 'HTML');
+              form.set('caption', text);
+              form.set('photo', new Blob([await readFile(frames[0])], { type: 'image/png' }), frames[0]);
+            }
+            const method = album ? 'sendMediaGroup' : 'sendPhoto';
 
             let telegram;
             try {
-              telegram = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/' +
-                (image ? 'sendPhoto' : 'sendMessage'), {
+              telegram = await fetch('https://api.telegram.org/bot' + BOT_TOKEN + '/' + method, {
                 ...requestOptions,
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: form,
               });
             } catch {
-              throw new Error('Telegram не ответил. Проверьте личку перед повторным запуском.');
+              throw new Error('Telegram не ответил. Проверьте, появился ли пост, перед повторным запуском.');
             }
-            if (!telegram.ok || !(await telegram.json()).ok) {
-              throw new Error('Telegram не принял черновик. HTTP ' + telegram.status);
+            const sent = await telegram.json().catch(() => null);
+            if (!telegram.ok || !sent?.ok) {
+              const hint = publish ? ' Проверьте право бота публиковать сообщения в ' + channel + '.' : '';
+              throw new Error('Telegram не принял пост. HTTP ' + telegram.status + '.' + hint);
             }
-            console.log('Черновик отправлен в личный чат.');
+            console.log(publish
+              ? 'Опубликовано: https://t.me/' + channel.slice(1) + '/' + (album ? sent.result[0] : sent.result).message_id
+              : 'Черновик отправлен в личный чат.');
           }
 
-          await sendPreview().catch((error) => {
+          await sendPost().catch((error) => {
             console.error(error.message);
             process.exitCode = 1;
           });
