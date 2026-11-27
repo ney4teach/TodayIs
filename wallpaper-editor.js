@@ -6,7 +6,7 @@ const wallpaperEditor = (() => {
   const activeKey = 'gntd.wallpaperActive';
   const prefix = 'gntd.wallpaperItem.';
   const imagePattern = /^data:image\/(webp|jpeg|png);base64,[A-Za-z0-9+/=]+$/;
-  const defaults = {mirror:false, zoom:100, x:50, y:50, dark:0, blur:0, filter:'none', strength:100};
+  const defaults = {mirror:false, zoom:100, x:50, y:50, dark:0, blur:0, filter:'none', strength:100, parallax:false, parallaxStrength:45};
   const filters = {
     none:['Без фильтра',()=> ''],
     warm:['Тёплый',s=>`sepia(${.45*s}) saturate(${1+.25*s})`],
@@ -21,13 +21,15 @@ const wallpaperEditor = (() => {
   const ranges = [
     ['zoom','Приближение',100,250,'%'],['x','Положение по горизонтали',0,100,'%'],
     ['y','Положение по вертикали',0,100,'%'],['dark','Затемнение',0,80,'%'],
-    ['blur','Размытие',0,24,' пкс'],['strength','Сила фильтра',0,100,'%']
+    ['blur','Размытие',0,24,' пкс'],['strength','Сила фильтра',0,100,'%'],
+    ['parallaxStrength','Сила параллакса',0,100,'%']
   ];
   let records = {}, legacy, draft, accountOwner;
 
   function adjustments(value) {
     const result = {...defaults};
     result.mirror = value?.mirror === true;
+    result.parallax = value?.parallax === true;
     if (Object.hasOwn(filters,value?.filter)) result.filter = value.filter;
     for (const [key,,min,max] of ranges) {
       if (Number.isFinite(value?.[key])) result[key] = Math.max(min,Math.min(max,value[key]));
@@ -49,11 +51,97 @@ const wallpaperEditor = (() => {
 
   function image() { return source(draft?.item ?? current()); }
 
+  const scenes = new Map();
+  const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
+  let moving, pointer = {x:0,y:0}, motionFrame = 0;
+
+  async function horizonLayers(address) {
+    const response = await fetch(address);
+    if (!response.ok) return null;
+    const svg = new DOMParser().parseFromString(await response.text(),'image/svg+xml').documentElement;
+    const front = svg.querySelector('#wallpaper-foreground');
+    if (!front) return null;
+    const foreground = svg.cloneNode(false);
+    foreground.append(front);
+    const data = node=>'data:image/svg+xml,'+encodeURIComponent(new XMLSerializer().serializeToString(node));
+    return {background:data(svg),foreground:data(foreground)};
+  }
+
+  function getScene(address) {
+    const cached = scenes.get(address);
+    if (cached) return cached;
+    const scene = {layers:null, pending:true};
+    if (scenes.size===2) scenes.delete(scenes.keys().next().value);
+    scenes.set(address,scene);
+    const prepare = address==='wallpapers/horizon.svg' ? horizonLayers : wallpaperDepth.prepare;
+    prepare(address).then(layers=>{scene.layers=layers}).catch(()=>{}).finally(()=>{
+      scene.pending = false;
+      if (image()===address) draw();
+    });
+    return scene;
+  }
+
+  function paintMotion() {
+    motionFrame = 0;
+    if (!moving) return;
+    const {stage,strength,mirror} = moving;
+    const amount = Math.min(12,Math.min(innerWidth,innerHeight)*.02)*strength/100;
+    stage.style.setProperty('--parallax-x',pointer.x*amount*(mirror?-1:1)+'px');
+    stage.style.setProperty('--parallax-y',pointer.y*amount+'px');
+  }
+
+  function resetPointer() {
+    pointer = {x:0,y:0};
+    if (!motionFrame && moving) motionFrame = requestAnimationFrame(paintMotion);
+  }
+
+  window.addEventListener('pointermove',event=>{
+    if (!moving || event.pointerType==='touch') return;
+    pointer = {x:2*event.clientX/innerWidth-1,y:2*event.clientY/innerHeight-1};
+    if (!motionFrame) motionFrame = requestAnimationFrame(paintMotion);
+  },{passive:true,capture:true});
+  window.addEventListener('pointerout',event=>{ if (!event.relatedTarget) resetPointer(); },{passive:true});
+  window.addEventListener('blur',resetPointer);
+  window.addEventListener('resize',resetPointer);
+  reducedMotion.addEventListener('change',draw);
+
+  function drawParallax(background,address,settings) {
+    const scene = settings.parallax && address && !reducedMotion.matches ? getScene(address) : null;
+    const layers = scene?.layers;
+    const enabled = Boolean(layers && settings.parallaxStrength);
+    draft?.updateParallax?.(scene);
+    let stage = background.firstElementChild;
+    if (!enabled) {
+      if (stage) stage.hidden = true;
+      if (moving) resetPointer();
+      moving = null;
+      return false;
+    }
+    if (!stage) {
+      stage = el('div');
+      stage.id = 'wallpaper-parallax';
+      stage.append(el('div','wallpaper-parallax-background'),el('div','wallpaper-parallax-foreground'));
+      background.append(stage);
+    }
+    if (stage.scene !== scene) {
+      stage.firstElementChild.style.backgroundImage = 'url('+JSON.stringify(layers.background)+')';
+      stage.lastElementChild.style.backgroundImage = 'url('+JSON.stringify(layers.foreground)+')';
+      stage.scene = scene;
+      pointer = {x:0,y:0};
+    }
+    stage.hidden = false;
+    moving = {stage,strength:settings.parallaxStrength,mirror:settings.mirror};
+    if (!motionFrame) motionFrame = requestAnimationFrame(paintMotion);
+    return true;
+  }
+
+
   function draw() {
     const background = document.getElementById('wallpaper-image');
     const settings = adjustments((draft?.item ?? current())?.settings);
     const address = image();
-    background.style.backgroundImage = address ? 'url('+JSON.stringify(address)+')' : '';
+    const layered = drawParallax(background,address,settings);
+    background.style.backgroundImage = address && !layered ? 'url('+JSON.stringify(address)+')' : '';
     background.style.backgroundPosition = (settings.mirror ? 100-settings.x : settings.x)+'% '+settings.y+'%';
     const zoom = settings.zoom/100 * (1+settings.blur/110);
     background.style.transform = `translate(${(50-settings.x)*(zoom-1)}%, ${(50-settings.y)*(zoom-1)}%) scale(${zoom*(settings.mirror?-1:1)}, ${zoom})`;
@@ -293,7 +381,14 @@ const wallpaperEditor = (() => {
     const filterLabel = el('label','field','Цветовой фильтр');
     filterLabel.append(select);
     const sliders = new Map();
-    form.append(mirrorLabel,filterLabel);
+    const parallax = input('','checkbox');
+    const parallaxLabel = el('label','wallpaper-mirror','Параллакс');
+    parallaxLabel.prepend(parallax);
+    const parallaxStatus = el('p','wallpaper-parallax-status');
+    parallaxStatus.setAttribute('role','status');
+    const parallaxOptions = el('div','wallpaper-parallax-options');
+    parallaxOptions.append(parallaxStatus);
+    form.append(mirrorLabel,parallaxLabel,parallaxOptions,filterLabel);
     for (const [key,label,min,max,unit] of ranges) {
       const slider = input('','range');
       slider.min = min;
@@ -304,11 +399,24 @@ const wallpaperEditor = (() => {
       const row = el('label','wallpaper-slider');
       row.append(el('span','',label),output,slider);
       sliders.set(key,{slider,output,unit});
-      form.append(row);
+      (key==='parallaxStrength' ? parallaxOptions : form).append(row);
     }
+    session.updateParallax = scene=>{
+      const requested = session.item.settings.parallax;
+      const reduced = reducedMotion.matches;
+      const status = reduced ? 'Анимация отключена системной настройкой уменьшения движения.'
+        : scene?.pending ? 'Анализируем фото…'
+        : scene?.layers ? 'Подвигайте курсором, чтобы увидеть глубину.'
+        : 'Передний план не удалось выделить. Фото останется статичным.';
+      parallaxOptions.hidden = !requested;
+      if (requested && parallaxStatus.textContent!==status) parallaxStatus.textContent = status;
+      const strength = sliders.get('parallaxStrength').slider;
+      strength.disabled = !requested || !(scene?.layers || reduced);
+    };
     function update() {
       const next = session.item.settings;
       mirror.checked = next.mirror;
+      parallax.checked = next.parallax;
       select.value = next.filter;
       for (const [key,{slider,output,unit}] of sliders) {
         slider.value = next[key];
@@ -319,7 +427,7 @@ const wallpaperEditor = (() => {
       repaint();
     }
     form.oninput = ()=>{
-      session.item.settings = {mirror:mirror.checked,filter:select.value};
+      session.item.settings = {mirror:mirror.checked,filter:select.value,parallax:parallax.checked};
       for (const [key,{slider}] of sliders) session.item.settings[key] = slider.valueAsNumber;
       update();
     };

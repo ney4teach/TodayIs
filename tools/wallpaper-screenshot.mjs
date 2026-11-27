@@ -13,16 +13,13 @@ export async function captureWallpaper(context, output) {
   if (!await wallpapers.count()) await page.getByRole('button',{name:/Оформление/}).click();
   await wallpapers.selectOption('horizon',{force:true});
   await page.getByRole('button',{name:'Редактировать обои',exact:true}).click();
-  await page.getByRole('checkbox',{name:'Отразить по горизонтали'}).check();
-  await page.locator('.wallpaper-controls select').selectOption('warm',{force:true});
-  await page.getByRole('slider',{name:'Положение по горизонтали',exact:true}).evaluate(slider=>{
-    slider.value = '20';
+  await page.getByRole('checkbox',{name:'Параллакс',exact:true}).check();
+  await page.locator('#wallpaper-parallax').waitFor({state:'visible'});
+  await page.getByRole('slider',{name:'Сила параллакса',exact:true}).evaluate(slider=>{
+    slider.value = '65';
     slider.dispatchEvent(new Event('input',{bubbles:true}));
   });
-  await page.getByRole('slider',{name:'Затемнение',exact:true}).evaluate(slider=>{
-    slider.value = '18';
-    slider.dispatchEvent(new Event('input',{bubbles:true}));
-  });
-  await page.waitForFunction(()=>document.querySelector('#wallpaper-image').style.filter.includes('sepia'));
+  await page.mouse.move(250,450);
+  await page.waitForFunction(()=>Math.abs(parseFloat(document.querySelector('#wallpaper-parallax').style.getPropertyValue('--parallax-x')))>1);
   await page.screenshot({path:output,animations:'disabled'});
 }
