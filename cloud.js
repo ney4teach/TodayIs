@@ -62,6 +62,7 @@ async function syncCloud() {
       const account=await cloudAccount();
       if (!account) return;
       await exchange(account,changes(account));
+      if (typeof wallpaperEditor!=="undefined") await wallpaperEditor.migrateLegacy(account);
       cloudStatus='Синхронизировано в '+new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
     });
   } catch(e) { cloudStatus=e.status===401?'Сессия истекла. Войдите снова.':('Изменения сохранены на устройстве. '+(e.status?e.message:'Нет связи с сервером.')); }
@@ -82,9 +83,10 @@ async function signIn(provider) {
   await cloudLock(async()=>{
     const old=await cloudAccount();
     if (old && old.owner!==session.owner) throw Error('Сначала выйдите из текущего аккаунта');
-    const initial=old?.data || flatten(unpack(await chrome.storage.sync.get(null)));
+    const initial=old?.data || {...flatten(unpack(await chrome.storage.sync.get(null))),...await wallpaperEditor.localImport()};
     const account={...session,data:initial,base:old?.base||{}};
     await exchange(account,old?changes(account):{seed:snapshot(initial)},true);
+    if (!old) await wallpaperEditor.mergeLocal(account);
     cloudStatus='Синхронизировано';
   });
   await refresh();
