@@ -1,7 +1,7 @@
 export async function captureWallpaper(context, output) {
   const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
   await worker.evaluate(()=>chrome.storage.sync.set({
-    'gntd.hidden':['bookmarks','tasks','calendar','music','quote','system'],
+    'gntd.hidden':['greeting','bookmarks','tasks','calendar','music','quote','system'],
     'gntd.theme':'dark'
   }));
   const page = await context.newPage();
@@ -11,10 +11,14 @@ export async function captureWallpaper(context, output) {
   await page.getByRole('button',{name:'Настройки',exact:true}).click();
   const wallpapers = page.locator('#settings-wallpaper');
   if (!await wallpapers.count()) await page.getByRole('button',{name:/Оформление/}).click();
-  await wallpapers.selectOption('aurora',{force:true});
+  await wallpapers.selectOption('horizon',{force:true});
   await page.getByRole('button',{name:'Редактировать обои',exact:true}).click();
   await page.getByRole('checkbox',{name:'Отразить по горизонтали'}).check();
   await page.locator('.wallpaper-controls select').selectOption('warm',{force:true});
+  await page.getByRole('slider',{name:'Положение по горизонтали',exact:true}).evaluate(slider=>{
+    slider.value = '20';
+    slider.dispatchEvent(new Event('input',{bubbles:true}));
+  });
   await page.getByRole('slider',{name:'Затемнение',exact:true}).evaluate(slider=>{
     slider.value = '18';
     slider.dispatchEvent(new Event('input',{bubbles:true}));
