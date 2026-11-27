@@ -111,30 +111,41 @@ async function renderCloud() {
   const account=await cloudAccount();
   if(summary){summary.textContent=account?[account.label,cloudStatus||'Яндекс ID'].join(' · '):'Вход через Яндекс ID';return}
   section.replaceChildren();
-  const action=(label,fn)=>{
+  const actions=el('div','cloud-actions');
+  const action=(label,fn,kind='')=>{
     const button=btn(label,label,async()=>{
       section.inert=true;
       try { await fn(); } catch(e) { cloudStatus=e.message; toast(e.message); }
       finally { section.inert=false; await renderCloud(); }
-    });
-    section.append(button);
+    },kind);
+    actions.append(button);
   };
   if (!GNTD_CLOUD_ORIGIN) {
     section.append(el('small','','Облачный сервер ещё не подключён.'));
     return;
   }
+  const provider=account?.owner.startsWith('google/')?'Google':'Яндекс ID';
+  const identity=el('div','cloud-identity');
+  const avatar=el('span','cloud-avatar',provider==='Google'?'G':'Я');
+  avatar.setAttribute('aria-hidden','true');
+  const copy=el('div','cloud-copy');
+  copy.append(el('h3','',account?.label || 'Облачный профиль'),
+    el('p','',account?provider:'Переносите настройки и раскладку между устройствами.'));
+  identity.append(avatar,copy);
+  section.append(identity);
   if (account) {
-    section.append(el('span','',account.label+' · '+(account.owner.startsWith('google/')?'Google':'Яндекс ID')));
-    action('Синхронизировать сейчас',syncCloud);
+    action('Синхронизировать сейчас',syncCloud,'cloud-primary');
     action('Обновить вход',()=>signIn(account.owner.split('/')[0]));
     action('Выйти из аккаунта',signOut);
   } else {
-    section.append(el('small','','Войдите, чтобы перенести настройки на другое устройство.'));
-    action('Войти через Яндекс ID',()=>signIn('yandex'));
+    action('Войти через Яндекс ID',()=>signIn('yandex'),'cloud-primary');
   }
-  if (cloudStatus) {
-    const status=el('small','',cloudStatus); status.setAttribute('role','status'); section.append(status);
+  if (account || cloudStatus) {
+    const status=el('p','cloud-status',cloudStatus || 'Статус появится после синхронизации.');
+    status.setAttribute('role','status');
+    section.append(status);
   }
+  section.append(actions);
 }
 function initCloud() {
   if (!GNTD_CLOUD_ORIGIN) return;

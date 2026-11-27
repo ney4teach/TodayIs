@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -86,10 +86,72 @@ class MediaHost
         catch (System.Runtime.InteropServices.COMException) { return false; }
     }
 
+    static GlobalSystemMediaTransportControlsSession YandexSession()
+    {
+        var sessions = manager.GetSessions();
+        for (int i = 0; i < sessions.Count; i++) {
+            var session = sessions[i];
+            try {
+                string id = (session.SourceAppUserModelId ?? "").ToLowerInvariant();
+                if ((id.Contains("yandex") && id.Contains("music")) ||
+                    (id.Contains("яндекс") && id.Contains("музык"))) return session;
+            } catch (System.Runtime.InteropServices.COMException) { }
+        }
+        return null;
+    }
+
+    static bool OpenYandexMusic()
+    {
+        string target = null;
+        foreach (var root in new[] { Environment.SpecialFolder.LocalApplicationData, Environment.SpecialFolder.ProgramFiles, Environment.SpecialFolder.ProgramFilesX86 }) {
+            string folder = Environment.GetFolderPath(root);
+            if (String.IsNullOrEmpty(folder)) continue;
+            if (root == Environment.SpecialFolder.LocalApplicationData) folder = Path.Combine(folder,"Programs");
+            foreach (string file in new[] { "Яндекс Музыка.exe", "Yandex Music.exe", "YandexMusic.exe" }) {
+                string exe = Path.Combine(folder,"YandexMusic",file);
+                if (File.Exists(exe)) { target = exe; break; }
+            }
+            if (target != null) break;
+        }
+        if (target == null) {
+            using (var protocol = Microsoft.Win32.Registry.ClassesRoot.OpenSubKey("yandexmusic")) {
+                if (protocol == null || protocol.GetValue("URL Protocol") == null) return false;
+            }
+            target = "yandexmusic://";
+        }
+        // Explorer launches the desktop app outside Chrome's native-host process tree.
+        var explorer = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Windows),"explorer.exe");
+        using (System.Diagnostics.Process.Start(explorer, "\"" + target + "\"")) { }
+        return true;
+    }
+
+    static object LaunchYandex()
+    {
+        stage = "Запуск Яндекс Музыки";
+        var session = YandexSession();
+        if (session == null && !OpenYandexMusic())
+            return new { message = "Установленная Яндекс Музыка не найдена." };
+        var elapsed = System.Diagnostics.Stopwatch.StartNew();
+        while (elapsed.ElapsedMilliseconds < 15000) {
+            if (session != null) {
+                try {
+                    var info = session.GetPlaybackInfo();
+                    if (IsPlaying(session) || (info != null && info.Controls != null &&
+                        info.Controls.IsPlayEnabled && Wait(session.TryPlayAsync())))
+                        return new { app = session.SourceAppUserModelId, message = "Яндекс Музыка включена" };
+                } catch (System.Runtime.InteropServices.COMException) { }
+            }
+            System.Threading.Thread.Sleep(500);
+            session = YandexSession();
+        }
+        return new { message = "Выберите трек в Яндекс Музыке, чтобы начать воспроизведение." };
+    }
+
     static object Respond(Dictionary<string,object> request)
     {
         stage = "Подключение к медиаслужбе";
         if (manager == null) manager = Wait(GlobalSystemMediaTransportControlsSessionManager.RequestAsync());
+        if ((string)request["action"] == "launchYandex") return LaunchYandex();
         stage = "Чтение списка плееров";
         var current = manager.GetCurrentSession();
         var list = manager.GetSessions();
