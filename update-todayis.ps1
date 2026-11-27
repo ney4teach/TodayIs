@@ -1,4 +1,4 @@
-﻿[CmdletBinding()]
+[CmdletBinding()]
 param(
     [string]$ProjectPath = 'C:\Проекты\GNTD GPT'
 )

@@ -41,9 +41,13 @@ async function external(url, options) {
   if (!response.ok) fail(502, 'Провайдер не подтвердил вход');
   return response.json();
 }
-const allowed = /^gntd\.(order|hidden|tiles|theme|wall|engine|alignX|alignY|manage|track|trackName|weatherCity|(tasks|events|cities)\.[\w-]{1,150})$/;
+const profileKey = /^gntd\.[a-z][A-Za-z0-9]{0,63}(?:\.[\w-]{1,150})?$/;
+function allowed(key) {
+  return typeof key === 'string' && profileKey.test(key)
+    && key !== 'gntd.weather' && key !== 'gntd.quote';
+}
 function settings(data) {
-  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(k => !allowed.test(k))) fail(400, 'Некорректные настройки');
+  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(key => !allowed(key))) fail(400, 'Некорректные настройки');
   return data;
 }
 setInterval(() => {
@@ -106,7 +110,7 @@ export const server = http.createServer(async (req,res) => {
         const data = row ? JSON.parse(row.data) : settings(b.seed);
         if (row && !Object.hasOwn(b,'seed')) {
           Object.assign(data,settings(b.set));
-          if (!Array.isArray(b.remove) || b.remove.some(k=>!allowed.test(k))) fail(400,'Некорректные ключи');
+          if (!Array.isArray(b.remove) || b.remove.some(key=>!allowed(key))) fail(400,'Некорректные ключи');
           for (const key of b.remove) delete data[key];
         }
         const encoded = JSON.stringify(data);
