@@ -62,6 +62,7 @@ async function syncCloud() {
       const account=await cloudAccount();
       if (!account) return;
       await exchange(account,changes(account));
+      if (typeof wallpaperEditor!=='undefined') wallpaperEditor.syncOriginals(account);
       if (typeof wallpaperEditor!=="undefined") await wallpaperEditor.migrateLegacy(account);
       cloudStatus='Синхронизировано в '+new Date().toLocaleTimeString('ru',{hour:'2-digit',minute:'2-digit'});
     });
@@ -87,6 +88,7 @@ async function signIn(provider) {
     const account={...session,data:initial,base:old?.base||{}};
     await exchange(account,old?changes(account):{seed:snapshot(initial)},true);
     if (!old) await wallpaperEditor.mergeLocal(account);
+    scheduleCloud(0);
     cloudStatus='Синхронизировано';
   });
   await refresh();

@@ -24,7 +24,7 @@ const wallpaperEditor = (() => {
     ['blur','Размытие',0,24,' пкс'],['strength','Сила фильтра',0,100,'%'],
     ['parallaxStrength','Сила параллакса',0,100,'%']
   ];
-  let records = {}, legacy, draft, accountOwner;
+  let records = {}, legacy, draft, accountOwner, activeAccount, shownOriginal;
 
   function adjustments(value) {
     const result = {...defaults};
@@ -49,7 +49,47 @@ const wallpaperEditor = (() => {
     return state.wall ? {id:state.wall,wall:state.wall} : undefined;
   }
 
-  function image() { return source(draft?.item ?? current()); }
+  function image() {
+    const item = draft?.item ?? current();
+    if (draft?.originalUrl) return draft.originalUrl;
+    if (shownOriginal?.key===item?.originalKey && shownOriginal?.url) return shownOriginal.url;
+    return source(item);
+  }
+
+  function loadOriginal(item) {
+    const key = item?.originalKey;
+    const owner = accountOwner;
+    if (draft?.originalUrl || (shownOriginal?.key===key && shownOriginal?.owner===owner)) return;
+    if (shownOriginal?.url) URL.revokeObjectURL(shownOriginal.url);
+    shownOriginal = undefined;
+    if (!wallpaperOriginals.validKey(key)) return;
+
+    const request = {key,owner};
+    shownOriginal = request;
+    wallpaperOriginals.original(activeAccount,item).then(blob=>{
+      if (shownOriginal!==request) return;
+      if (!blob) {
+        request.failed = true;
+        return;
+      }
+      request.url = URL.createObjectURL(blob);
+      repaint();
+    }).catch(()=>{ request.failed=true; });
+  }
+
+  function retryOriginal() {
+    if (shownOriginal?.failed) {
+      shownOriginal = undefined;
+      draw();
+    }
+  }
+
+  window.addEventListener('online',retryOriginal);
+
+  function syncOriginals(account) {
+    const items = Object.entries(account.base || {}).filter(([key])=>key.startsWith(prefix)).map(([,item])=>item);
+    wallpaperOriginals.sync(account,items).catch(()=>{}).finally(retryOriginal);
+  }
 
   const scenes = new Map();
   const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)');
@@ -138,8 +178,19 @@ const wallpaperEditor = (() => {
 
   function draw() {
     const background = document.getElementById('wallpaper-image');
-    const settings = adjustments((draft?.item ?? current())?.settings);
+    const item = draft?.item ?? current();
+    const settings = adjustments(item?.settings);
+    loadOriginal(item);
     const address = image();
+    const hasOriginal = Boolean(draft?.originalUrl || (shownOriginal?.key===item?.originalKey && shownOriginal?.url));
+    if (draft?.photoQuality) {
+      const {width,height} = item.originalSize ?? {};
+      const size = Number.isSafeInteger(width) && Number.isSafeInteger(height) ? ' · '+width+' × '+height : '';
+      const status = hasOriginal ? 'Оригинал'+size
+        : item.originalKey ? 'Сжатая копия. Оригинал пока недоступен на этом устройстве.'
+        : 'Сжатая копия. Чтобы восстановить качество, добавьте исходное фото.';
+      if (draft.photoQuality.textContent!==status) draft.photoQuality.textContent = status;
+    }
     const layered = drawParallax(background,address,settings);
     background.style.backgroundImage = address && !layered ? 'url('+JSON.stringify(address)+')' : '';
     background.style.backgroundPosition = (settings.mirror ? 100-settings.x : settings.x)+'% '+settings.y+'%';
@@ -160,12 +211,14 @@ const wallpaperEditor = (() => {
     const changed = JSON.stringify(next)!==JSON.stringify(records) || account?.owner!==accountOwner ||
       local[legacyKey]?.image!==legacy?.image;
     if (draft && account?.owner!==accountOwner) {
+      if (draft.originalUrl) URL.revokeObjectURL(draft.originalUrl);
       draft = null;
       if (dialog.open && activeDialog==='wallpaper-editor') dialog.close();
     }
     records = next;
     legacy = local[legacyKey];
     accountOwner = account?.owner;
+    activeAccount = account;
     return changed;
   }
 
@@ -176,7 +229,7 @@ const wallpaperEditor = (() => {
       throw Error('В облачном профиле недостаточно места для обоев.');
   }
 
-  async function save(set,remove=[],expectedOwner=accountOwner) {
+  async function save(set,remove=[],expectedOwner=accountOwner,original) {
     await cloudLock(async()=>{
       const account = await cloudAccount();
       if (account?.owner!==expectedOwner) throw Error('Профиль изменился. Откройте настройки обоев снова.');
@@ -184,8 +237,15 @@ const wallpaperEditor = (() => {
       const next = {...data,...set};
       for (const key of remove) delete next[key];
       checkSize(next);
+      const released = remove.map(key=>data[key]?.originalKey);
+      if (original) await wallpaperOriginals.put(expectedOwner ?? '',original.key,original.file);
       if (account) await writeDashboard(account,set,remove);
       else await chrome.storage.local.set({[storageKey]:next});
+      for (const originalKey of released) {
+        if (wallpaperOriginals.validKey(originalKey) && !Object.values(next).some(item=>item?.originalKey===originalKey)) {
+          await wallpaperOriginals.remove(expectedOwner ?? '',originalKey).catch(()=>{});
+        }
+      }
     });
     await refresh();
   }
@@ -204,7 +264,10 @@ const wallpaperEditor = (() => {
         canvas.height = Math.max(1,Math.round(image.naturalHeight*size));
         canvas.getContext('2d').drawImage(image,0,0,canvas.width,canvas.height);
         const encoded = canvas.toDataURL('image/webp',.8);
-        if (encoded.length <= 105*1024) return {id:crypto.randomUUID(),name:String(name).slice(0,150),image:encoded};
+        if (encoded.length <= 105*1024) return {
+          id:crypto.randomUUID(),name:String(name).slice(0,150),image:encoded,
+          originalSize:{width:image.naturalWidth,height:image.naturalHeight}
+        };
         size *= .8;
       }
       throw Error('Не удалось подготовить фото.');
@@ -214,7 +277,8 @@ const wallpaperEditor = (() => {
   }
 
   async function fromLegacy(photo) {
-    return {...await prepare(await (await fetch(photo.image)).blob(),photo.name),id:'legacy'};
+    const {originalSize,...copy} = await prepare(await (await fetch(photo.image)).blob(),photo.name);
+    return {...copy,id:'legacy'};
   }
 
   async function localImport() {
@@ -315,7 +379,7 @@ const wallpaperEditor = (() => {
       picker.disabled = true;
       try {
         const item = await prepare(file);
-        if (picker.isConnected && owner===accountOwner) edit(item);
+        if (picker.isConnected && owner===accountOwner) edit(item,file);
       } catch(error) { toast(error.message); }
       finally { picker.value=''; picker.disabled=false; }
     };
@@ -356,15 +420,16 @@ const wallpaperEditor = (() => {
 
   function cancel() {
     if (!draft) return;
+    if (draft.originalUrl) URL.revokeObjectURL(draft.originalUrl);
     draft = null;
     repaint();
   }
 
-  function edit(item) {
+  function edit(item,file) {
     if (!source(item)) return;
     const owner = accountOwner;
     const initial = adjustments(item.settings);
-    const session = {item:{...item,settings:initial}};
+    const session = {item:{...item,settings:initial},originalUrl:file ? URL.createObjectURL(file) : null};
     draft = session;
     modal('Редактор обоев','wallpaper-editor');
     const form = el('form','wallpaper-controls');
@@ -448,8 +513,13 @@ const wallpaperEditor = (() => {
           const converted = await fromLegacy(item);
           session.item = {...converted,settings:session.item.settings};
         }
+        const original = file ? {file,key:await wallpaperOriginals.hash(file)} : null;
         if (draft!==session) return;
-        await save({[activeKey]:item.id,[prefix+item.id]:session.item},[],owner);
+        if (original) {
+          session.item.originalKey = original.key;
+          session.item.originalType = file.type;
+        }
+        await save({[activeKey]:item.id,[prefix+item.id]:session.item},[],owner,original);
         if (draft===session) {
           cancel();
           showSettings('appearance','#settings-wallpaper');
@@ -459,10 +529,15 @@ const wallpaperEditor = (() => {
     };
     fields.append(form);
     const hint = el('p','wallpaper-hint','Изменения видны за виджетами и сохраняются после применения.');
+    if (item.image) {
+      session.photoQuality = el('p','wallpaper-hint wallpaper-photo-quality');
+      session.photoQuality.setAttribute('role','status');
+      form.prepend(session.photoQuality);
+    }
     form.prepend(hint);
     update();
     mirror.focus();
   }
 
-  return {storageKey,legacyKey,activeKey,prefix,pick,image,draw,load,localImport,mergeLocal,migrateLegacy,fieldsForSettings,cancel};
+  return {storageKey,legacyKey,activeKey,prefix,pick,image,draw,load,localImport,mergeLocal,migrateLegacy,fieldsForSettings,cancel,syncOriginals};
 })();

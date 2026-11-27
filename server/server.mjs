@@ -11,7 +11,8 @@ if (ids.some(id => !/^[a-p]{32}$/.test(id))) throw Error('Set EXTENSION_IDS');
 const db = new DatabaseSync(env.DB_PATH || 'profiles.sqlite');
 db.exec(`PRAGMA journal_mode=WAL;
 CREATE TABLE IF NOT EXISTS profiles (owner TEXT PRIMARY KEY, data TEXT NOT NULL);
-CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, owner TEXT NOT NULL, expires INTEGER NOT NULL);`);
+CREATE TABLE IF NOT EXISTS sessions (hash TEXT PRIMARY KEY, owner TEXT NOT NULL, expires INTEGER NOT NULL);
+CREATE TABLE IF NOT EXISTS wallpaper_files (owner TEXT NOT NULL, hash TEXT NOT NULL, bytes BLOB NOT NULL, PRIMARY KEY (owner, hash));`);
 const flows = new Map(), tickets = new Map();
 const random = () => randomBytes(32).toString('base64url');
 const digest = value => createHash('sha256').update(value).digest('base64url');
@@ -41,10 +42,89 @@ async function external(url, options) {
   if (!response.ok) fail(502, 'Провайдер не подтвердил вход');
   return response.json();
 }
-const allowed = /^gntd\.(order|hidden|tiles|theme|wall|engine|alignX|alignY|manage|track|trackName|weatherCity|(tasks|events|cities)\.[\w-]{1,150})$/;
+const allowed = /^gntd\.(order|hidden|tiles|theme|wall|wallpaperActive|engine|alignX|alignY|manage|track|trackName|weatherCity|(tasks|events|cities|wallpaperItem)\.[\w-]{1,150})$/;
 function settings(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(k => !allowed.test(k))) fail(400, 'Некорректные настройки');
   return data;
+}
+const wallpaperFileLimit = 64 * 1024 ** 2;
+const wallpaperAccountLimit = 256 * 1024 ** 2;
+const wallpaperHash = /^[a-f0-9]{64}$/;
+const wallpaperRecord = /^gntd\.wallpaperItem\.[\w-]{1,150}$/;
+function wallpaperKeys(data) {
+  const keys = new Set();
+  for (const [name,value] of Object.entries(data)) {
+    if (wallpaperRecord.test(name) && typeof value?.originalKey==='string' && wallpaperHash.test(value.originalKey))
+      keys.add(value.originalKey);
+  }
+  return keys;
+}
+const getProfile = db.prepare('SELECT data FROM profiles WHERE owner=?');
+const getWallpaper = db.prepare('SELECT bytes FROM wallpaper_files WHERE owner=? AND hash=?');
+const hasWallpaper = db.prepare('SELECT 1 FROM wallpaper_files WHERE owner=? AND hash=?');
+const wallpaperUsage = db.prepare('SELECT COALESCE(SUM(length(bytes)),0) AS total FROM wallpaper_files WHERE owner=?');
+const storeWallpaper = db.prepare('INSERT INTO wallpaper_files (owner,hash,bytes) VALUES (?,?,?)');
+const deleteWallpaper = db.prepare('DELETE FROM wallpaper_files WHERE owner=? AND hash=?');
+async function originalBytes(req,key) {
+  if (req.headers['content-type']?.split(';',1)[0].trim().toLowerCase()!=='application/octet-stream') {
+    req.resume();
+    fail(415,'Ожидается двоичный файл');
+  }
+  const declared = Number(req.headers['content-length']);
+  if (declared>wallpaperFileLimit) {
+    req.resume();
+    fail(413,'Оригинал обоев превышает 64 МиБ');
+  }
+  const fixed = Number.isSafeInteger(declared) && declared>=0 ? Buffer.allocUnsafe(declared) : null;
+  const parts = [];
+  const hash = createHash('sha256');
+  let received = 0;
+  for await (const part of req.iterator({destroyOnReturn:false})) {
+    const end = received + part.length;
+    if (end>wallpaperFileLimit) {
+      req.resume();
+      fail(413,'Оригинал обоев превышает 64 МиБ');
+    }
+    if (fixed) part.copy(fixed,received);
+    else parts.push(part);
+    hash.update(part);
+    received = end;
+  }
+  if (!received || (fixed && received!==fixed.length) || hash.digest('hex')!==key)
+    fail(400,'Контрольная сумма оригинала не совпадает');
+  return fixed ?? Buffer.concat(parts,received);
+}
+async function wallpaperFile(req,res,owner,key) {
+  if (req.method==='GET') {
+    const row = getWallpaper.get(owner,key);
+    if (!row) fail(404,'Оригинал обоев не найден');
+    res.writeHead(200,{'Content-Type':'application/octet-stream','Content-Length':row.bytes.length,'X-Content-Type-Options':'nosniff'});
+    return res.end(row.bytes);
+  }
+  if (req.method!=='PUT' && req.method!=='DELETE') fail(405,'Метод не поддерживается');
+  const bytes = req.method==='PUT' ? await originalBytes(req,key) : null;
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const profile = getProfile.get(owner);
+    const referenced = profile && wallpaperKeys(JSON.parse(profile.data)).has(key);
+    if (bytes) {
+      if (!hasWallpaper.get(owner,key)) {
+        if (!referenced) fail(409,'Добавьте оригинал в галерею перед загрузкой');
+        if (wallpaperUsage.get(owner).total+bytes.length>wallpaperAccountLimit)
+          fail(413,'В облаке занято 256 МиБ оригиналов обоев. Удалите ненужные фото');
+        storeWallpaper.run(owner,key,bytes);
+      }
+    } else {
+      if (referenced) fail(409,'Оригинал используется в галерее');
+      deleteWallpaper.run(owner,key);
+    }
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+  res.writeHead(204);
+  return res.end();
 }
 setInterval(() => {
   for (const map of [flows,tickets]) for (const [k,v] of map) if (v.expires < Date.now()) map.delete(k);
@@ -97,13 +177,16 @@ export const server = http.createServer(async (req,res) => {
     if (req.method==='DELETE' && path==='/session') {
       db.prepare('DELETE FROM sessions WHERE hash=?').run(hash); return json({});
     }
+    const original = /^\/wallpaper-files\/([a-f0-9]{64})$/.exec(path);
+    if (original) return await wallpaperFile(req,res,session.owner,original[1]);
     if (req.method==='POST' && path==='/profile') {
       const b = await body(req);
       // No awaits inside the transaction: independent installations patch the latest profile.
       db.exec('BEGIN IMMEDIATE');
       try {
-        const row = db.prepare('SELECT data FROM profiles WHERE owner=?').get(session.owner);
+        const row = getProfile.get(session.owner);
         const data = row ? JSON.parse(row.data) : settings(b.seed);
+        const previousWallpaperKeys = wallpaperKeys(data);
         if (row && !Object.hasOwn(b,'seed')) {
           Object.assign(data,settings(b.set));
           if (!Array.isArray(b.remove) || b.remove.some(k=>!allowed.test(k))) fail(400,'Некорректные ключи');
@@ -112,6 +195,12 @@ export const server = http.createServer(async (req,res) => {
         const encoded = JSON.stringify(data);
         if (Buffer.byteLength(encoded)>524288) fail(413,'Профиль превышает 512 КиБ');
         if (!row || encoded!==row.data) db.prepare('INSERT OR REPLACE INTO profiles VALUES(?,?)').run(session.owner,encoded);
+        if (previousWallpaperKeys.size) {
+          const retained = wallpaperKeys(data);
+          for (const key of previousWallpaperKeys) {
+            if (!retained.has(key)) deleteWallpaper.run(session.owner,key);
+          }
+        }
         db.exec('COMMIT'); return json({data});
       } catch(e) { db.exec('ROLLBACK'); throw e; }
     }
