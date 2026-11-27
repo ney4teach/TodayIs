@@ -60,7 +60,41 @@ dialog[data-view="forecast"] header h2 {font-size:clamp(22px,4vw,30px);line-heig
   from { opacity: 0; }
   to { opacity: 1; }
 }
-.cloud-settings{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:12px;border-bottom:1px solid currentColor}.cloud-settings h3,.cloud-settings small,.cloud-settings span{flex-basis:100%;margin:0}.cloud-settings small{opacity:.8}
+.cloud-settings {
+  display:grid;
+  gap:16px;
+  padding:16px;
+  border:1px solid var(--line);
+  border-radius:20px;
+  background:color-mix(in srgb,var(--accent) 6%,var(--field));
+}
+.cloud-identity {display:grid;grid-template-columns:auto minmax(0,1fr);align-items:start;gap:12px}
+.cloud-avatar {
+  display:grid;
+  place-items:center;
+  width:2.55em;
+  aspect-ratio:1;
+  border-radius:12px;
+  background:color-mix(in srgb,var(--accent) 16%,var(--field));
+  color:var(--ink);
+  font-weight:750;
+}
+.cloud-copy {display:grid;gap:4px;overflow-wrap:anywhere}
+.cloud-copy h3,.cloud-copy p,.cloud-status {margin:0}
+.cloud-copy h3 {font-size:1.08em;line-height:1.25}
+.cloud-copy p,.cloud-status {color:var(--muted);font-size:.9em;line-height:1.45}
+.cloud-status {padding:10px 0 0;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.cloud-actions {display:flex;flex-wrap:wrap;gap:8px}
+.cloud-actions button {flex:1 1 auto;min-height:40px;border-radius:12px;white-space:normal}
+.cloud-actions .cloud-primary {
+  flex-basis:100%;
+  background:color-mix(in srgb,var(--accent) 19%,var(--field));
+  border-color:color-mix(in srgb,var(--accent) 55%,var(--line));
+  color:var(--ink);
+  font-weight:700;
+}
+.cloud-actions .cloud-primary:hover {background:color-mix(in srgb,var(--accent) 27%,var(--field))}
+.cloud-actions button:focus-visible {outline:2px solid var(--soft);outline-offset:2px}
 
 dialog[data-view="settings"] {
   position: fixed; inset: 12px auto 12px 12px; margin: 0;
@@ -85,7 +119,6 @@ dialog[data-view="settings"] #fields {gap:9px;margin-top:26px}
 .settings-chevron {color:var(--muted)}
 .settings-widget {display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid var(--line)}
 .settings-url:not([hidden]) {display:grid;gap:10px}
-dialog[data-view="settings"] .cloud-settings {border:0;padding:0}
 @media(prefers-reduced-motion:no-preference){
   dialog[open][data-view="settings"] {animation:settings-in .24s cubic-bezier(.2,.8,.2,1)}
   @keyframes settings-in {from{transform:translateX(var(--settings-entry-x));opacity:.5}to{transform:translateX(0);opacity:1}}
