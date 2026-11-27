@@ -138,7 +138,24 @@ jobs:
               await trigger.waitFor();
               await revealDock(page);
               await page.getByRole('button', {name: 'Автосортировка', exact: true}).waitFor();
-              await page.locator('#dock').screenshot({path:'todayis-activity.png',animations:'disabled'});
+              const dock = page.locator('#dock');
+              await dock.evaluate(el => Promise.all(el.getAnimations({subtree:true}).map(animation => animation.finished)));
+              const box = await dock.boundingBox();
+              const x = Math.round(box.x + box.width / 2);
+              const y = Math.floor(box.y) - 5;
+              await page.mouse.move(x, y);
+              if (await dock.getAttribute('data-expanded') !== 'true') throw new Error('Панель свернулась рядом с краем.');
+              await page.evaluate(({x, y}) => {
+                const marker = document.createElement('div');
+                marker.setAttribute('aria-hidden', 'true');
+                marker.style.cssText = `position:fixed;left:${x}px;top:${y}px;width:8px;height:8px;transform:translate(-50%,-50%);border:2px solid white;border-radius:50%;background:#181820;box-shadow:0 0 0 1px #181820;pointer-events:none;z-index:99999`;
+                document.body.append(marker);
+              }, {x, y});
+              await page.screenshot({path:'todayis-activity.png',animations:'disabled',clip:{
+                x:box.x-12,y:box.y-16,width:box.width+24,height:box.height+28,
+              }});
+              await page.mouse.move(x, y - 10);
+              if (await dock.getAttribute('data-expanded') !== 'false') throw new Error('Панель осталась открытой после ухода курсора.');
               return;
             }
             if (process.env.SETTINGS_SCREENSHOT === 'true') {

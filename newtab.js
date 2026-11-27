@@ -1187,6 +1187,17 @@ function dock(){
     trigger.setAttribute('aria-expanded',String(open));
     drawer.inert=!open;
   }
+  function nearDock({clientX,clientY}){
+    const margin=8;
+    return [d,drawer].some(element=>{
+      const {left,right,top,bottom}=element.getBoundingClientRect();
+      return clientX>=left-margin&&clientX<=right+margin&&clientY>=top-margin&&clientY<=bottom+margin;
+    });
+  }
+  function stopHover(){
+    hovered=false;
+    if(!pinned&&!actions.contains(document.activeElement))expand(false);
+  }
   function close(){
     pinned=false;
     if(actions.contains(document.activeElement))trigger.focus({preventScroll:true});
@@ -1214,9 +1225,13 @@ function dock(){
     expand(true);
   },{signal});
   d.addEventListener('pointerleave',event=>{
-    if(event.pointerType==='touch')return;
-    hovered=false;
-    if(!pinned&&!actions.contains(document.activeElement))expand(false);
+    if(event.pointerType!=='touch'&&(!event.relatedTarget||!nearDock(event)))stopHover();
+  },{signal});
+  document.addEventListener('pointermove',event=>{
+    if(hovered&&event.pointerType!=='touch'&&!d.contains(event.target)&&!nearDock(event))stopHover();
+  },{signal});
+  document.documentElement.addEventListener('pointerleave',event=>{
+    if(hovered&&event.pointerType!=='touch')stopHover();
   },{signal});
   d.addEventListener('focusout',event=>{
     if(!d.contains(event.relatedTarget)){
