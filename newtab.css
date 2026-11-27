@@ -285,6 +285,7 @@ dialog.bookmark-confirm { width:min(320px,92vw) }
 .bookmark-panel .bookmark-tile:focus-visible,
 .bookmark-folder-grid .bookmark-tile:focus-visible { outline-offset:-2px }
 @media (hover:hover) and (prefers-reduced-motion:no-preference) {
+  .bookmark-panel .bookmark-add-site { transition:opacity 180ms ease-out }
   .card[data-id="bookmarks"] .bookmark-mark { transition:transform 140ms ease-out }
   .card[data-id="bookmarks"] .bookmark-tile:hover .bookmark-mark { transform:translateY(-1px) }
 }
