@@ -140,15 +140,7 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
 .bookmark-results { max-height:55vh; overflow:auto; padding:3px }
 .bookmark-results small { grid-column:1/-1 }
 
-.bookmark-theme-heading,.bookmark-settings-row { display:flex; align-items:center; justify-content:space-between; gap:8px }
-.bookmark-settings-row strong { min-width:0; overflow-wrap:anywhere }
-.bookmark-settings-row button { flex:none }
-.bookmark-settings-group { display:grid; gap:8px; padding-block:8px; border-top:1px solid var(--line) }
-.bookmark-settings-group > button { justify-self:start }
-.bookmark-settings-site > div { min-width:0; overflow-wrap:anywhere }
-.bookmark-settings-site small { display:block }
-.bookmark-settings-group .bookmark-remove { color:var(--muted); font-size:13px }
-.bookmark-settings-group .bookmark-remove:hover { color:var(--ink) }
+.bookmark-theme-heading { display:flex; align-items:center; justify-content:space-between; gap:8px }
 .card[data-id=music]{container:music / size}
 .card[data-id=music] .inside{overflow:hidden;justify-content:center;gap:5px;padding:clamp(7px,9cqh,18px) clamp(10px,4cqw,22px)}
 .card[data-id=music] .inside:has(.system-track)>.cap{display:none}
@@ -260,9 +252,28 @@ dialog[data-view="bookmark-search"] { width:min(620px,92vw) }
   .card[data-id="bookmarks"] .bookmark-panel .bookmark-theme-heading { display:none }
 }
 .bookmark-preview { display:grid; gap:8px }
-.bookmark-preview h4 { margin:0 }
-.bookmark-preview-status:empty { margin-top:-8px }
-.bookmark-preview-surface { container: bookmarks / size; display:grid; grid-template-rows:minmax(0,1fr); height:clamp(196px,27vh,248px); padding:10px; border:1px solid var(--line); border-radius:var(--radius,16px) }
+.bookmark-preview-status:empty { display:none }
+.bookmark-editor-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,132px),1fr)); gap:10px }
+.bookmark-editor-grid .bookmark-theme { min-width:0; padding:8px; border:1px solid var(--line); border-radius:var(--radius,16px) }
+.bookmark-editor-grid h3 { min-width:0; margin:0; font-size:.875em; color:var(--ink) }
+.bookmark-editor-grid .bookmark-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px }
+.bookmark-editor-grid .bookmark-label { display:none }
+.bookmark-editor-grid .bookmark-tile { width:100%; padding:6px 2px }
+.bookmark-editor-entry { position:relative; min-width:0 }
+.bookmark-actions { display:flex; gap:8px }
+.bookmark-action { display:grid; place-items:center; width:32px; height:32px; padding:0; flex:none; font-size:1.25em }
+.bookmark-remove { opacity:0; color:var(--muted); background:var(--glass); width:24px; height:24px }
+.bookmark-editor-entry .bookmark-remove { position:absolute; top:0; right:0 }
+.bookmark-editor-entry:hover .bookmark-remove,
+.bookmark-theme-heading:hover .bookmark-remove,
+.bookmark-remove:focus-visible { opacity:1 }
+@media (hover:none) {
+  .bookmark-remove { opacity:1 }
+}
+.bookmark-add-site .bookmark-mark { border:1px dashed currentColor }
+dialog.bookmark-confirm { width:min(320px,92vw) }
+.bookmark-confirm p { overflow-wrap:anywhere }
+.bookmark-confirm .bookmark-actions { justify-content:flex-end }
 .bookmark-preview [draggable] { cursor:grab }
 .bookmark-preview [draggable]:active { cursor:grabbing }
 .bookmark-preview .bookmark-mark { pointer-events:none }

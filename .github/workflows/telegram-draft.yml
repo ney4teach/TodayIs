@@ -85,7 +85,7 @@ jobs:
             const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
             await worker.evaluate(async () => {
               const themes = {
-                'Работа': ['github.com', 'figma.com', 'docs.google.com', 'notion.so'],
+                'Работа': ['github.com', 'figma.com', 'docs.google.com'],
                 'Музыка': ['music.yandex.ru', 'soundcloud.com', 'bandcamp.com', 'open.spotify.com'],
                 'Почитать': ['habr.com', 'wikipedia.org', 'medium.com', 'arxiv.org'],
                 'Отдых': ['youtube.com', 'twitch.tv', 'steampowered.com', 'kinopoisk.ru'],
@@ -103,10 +103,10 @@ jobs:
             });
             const page = await context.newPage();
             await page.goto('chrome-extension://' + new URL(worker.url()).hostname + '/newtab.html');
-            await page.locator('#board [data-id="bookmarks"] .bookmark-panel .bookmark-tile').last().waitFor();
+            await page.locator('#board [data-id="bookmarks"] .bookmark-add-site').waitFor();
             await page.evaluate(() => showSettings('bookmarks'));
             const preview = page.locator('.bookmark-preview');
-            await preview.getByRole('button', {name:'Работа', exact:true}).click();
+            await preview.getByRole('button', {name:'github.com · Работа', exact:true}).hover();
             await preview.screenshot({path:'todayis-bookmarks.png',animations:'disabled'});
           } finally {
             await context.close();

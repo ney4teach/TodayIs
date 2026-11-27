@@ -46,28 +46,17 @@ function bookmarkFields() {
   selectField('Содержимое панели', [['custom', 'Мои темы'], ['browser', 'Закладки браузера']],
     state.bookmarkSource, value => change(s => { s.bookmarkSource = value; }));
   if (state.bookmarkSource === 'custom') {
-    const addTheme = btn('Добавить тему', 'Добавить тему', () => editCustomBookmark());
+    const actions = el('div', 'bookmark-actions');
+    const addTheme = btn('Добавить тему', '＋', () => editCustomBookmark(), 'bookmark-action');
     addTheme.disabled = state.linkCategories.length >= themeLimit;
-    fields.append(el('small', '', 'До 4 тем, по 4 сайта в каждой'), addTheme);
-    if (state.siteTiles.length) fields.append(btn('Поиск по всем моим ссылкам', 'Найти сайт', openBookmarkSearch));
-    if (state.linkCategories.length) fields.append(bookmarkPreview());
-    for (const theme of state.linkCategories) {
-      const row = el('div', 'bookmark-settings-row');
-      const group = el('section', 'bookmark-settings-group');
-      row.append(el('strong', '', theme.title), deleteBookmarkButton(theme, true));
-      group.append(row);
-      for (const site of state.siteTiles.filter(item => item.categoryId === theme.id)) {
-        const entry = el('div', 'bookmark-settings-row bookmark-settings-site');
-        const details = el('div');
-        details.append(el('span', '', site.title), el('small', '', site.url));
-        entry.append(details, deleteBookmarkButton(site, false));
-        group.append(entry);
-      }
-      const addSite = btn('Добавить сайт в тему «' + theme.title + '»', 'Добавить сайт', () => editCustomBookmark(theme.id));
-      addSite.disabled = state.siteTiles.filter(site => site.categoryId === theme.id).length >= sitesPerTheme;
-      group.append(addSite);
-      fields.append(group);
+    actions.append(addTheme);
+    if (state.siteTiles.length) {
+      const search = btn('Найти сайт', '', openBookmarkSearch, 'bookmark-action');
+      search.append(icon('search'));
+      actions.append(search);
     }
+    fields.append(actions);
+    if (state.linkCategories.length) fields.append(bookmarkPreview());
     return;
   }
   if (!bookmarkFolders.size) {
@@ -81,18 +70,34 @@ function bookmarkFields() {
 
 function deleteBookmarkButton(item, isTheme) {
   const label = 'Удалить ' + (isTheme ? 'тему' : 'сайт') + ' «' + item.title + '»';
-  return btn(label, 'Удалить', async () => {
-    const question = label + (isTheme ? ' вместе со всеми её сайтами?' : '?');
-    if (!window.confirm(question)) return;
-    await change(s => {
-      if (isTheme) {
-        s.linkCategories = s.linkCategories.filter(theme => theme.id !== item.id);
-        s.siteTiles = s.siteTiles.filter(site => site.categoryId !== item.id);
-      } else {
-        s.siteTiles = s.siteTiles.filter(site => site.id !== item.id);
-      }
-    });
-  }, 'mini bookmark-remove');
+  return btn(label, '×', () => {
+    const confirmation = el('dialog', 'bookmark-confirm');
+    const question = el('h2', '', 'Удалить?');
+    question.id = 'bookmark-remove-question';
+    confirmation.setAttribute('aria-labelledby', question.id);
+    const detail = el('p', '', '«' + item.title + '»' + (isTheme ? ' вместе со всеми сайтами темы' : ''));
+    detail.id = 'bookmark-remove-detail';
+    confirmation.setAttribute('aria-describedby', detail.id);
+    const actions = el('div', 'bookmark-actions');
+    const cancel = btn('Нет', 'Нет', () => confirmation.close());
+    cancel.autofocus = true;
+    actions.append(cancel, btn('Да', 'Да', () => confirmation.close('delete')));
+    confirmation.append(question, detail, actions);
+    confirmation.addEventListener('close', async () => {
+      confirmation.remove();
+      if (confirmation.returnValue !== 'delete') return;
+      await change(s => {
+        if (isTheme) {
+          s.linkCategories = s.linkCategories.filter(theme => theme.id !== item.id);
+          s.siteTiles = s.siteTiles.filter(site => site.categoryId !== item.id);
+        } else {
+          s.siteTiles = s.siteTiles.filter(site => site.id !== item.id);
+        }
+      });
+    }, {once:true});
+    dialog.after(confirmation);
+    confirmation.showModal();
+  }, 'bookmark-action bookmark-remove');
 }
 
 function bookmarkTile(node, openFolder, editTile) {
@@ -233,12 +238,10 @@ function moveBookmark(state, source, target) {
 
 function bookmarkPreview() {
   const preview = el('section', 'bookmark-preview');
-  const heading = el('h4', '', 'Порядок закладок');
-  const instructions = el('small', '', 'Перетащите тему за заголовок, а сайт за иконку. Можно также выбрать элемент и новое место двумя нажатиями.');
   const hint = el('small', 'bookmark-preview-status');
   hint.setAttribute('aria-live', 'polite');
   const surface = el('div', 'bookmark-preview-surface');
-  preview.append(heading, instructions, surface, hint);
+  preview.append(surface, hint);
   let source;
   let pending = false;
 
@@ -279,6 +282,7 @@ function bookmarkPreview() {
     });
     const target = {button, themeId:theme.id, siteId:site?.id, count};
     button.dataset.bookmarkMove = (site ? 'site:' + site.id : 'theme:' + theme.id);
+    button.setAttribute('aria-description', 'Переместить');
     button.draggable = true;
     button.setAttribute('aria-pressed', 'false');
     button.ondragstart = event => {
@@ -330,8 +334,9 @@ function renderCustomBookmarks(container, preview) {
   }
   const groups = new Map(state.linkCategories.map(theme => [theme.id, []]));
   for (const site of state.siteTiles) groups.get(site.categoryId)?.push(site);
-  const themes = state.linkCategories.slice(0, themeLimit);
-  const panel = el('div', 'bookmark-panel');
+  const themes = preview ? state.linkCategories : state.linkCategories.slice(0, themeLimit);
+  const firstVacancy = themes.find(theme => groups.get(theme.id).length < sitesPerTheme);
+  const panel = el('div', preview ? 'bookmark-editor-grid' : 'bookmark-panel');
   container.append(panel);
   for (const theme of themes) {
     const sites = groups.get(theme.id);
@@ -346,24 +351,40 @@ function renderCustomBookmarks(container, preview) {
       preview.dropZone(section, target);
     } else name.textContent = theme.title;
     heading.append(name);
+    if (preview) heading.append(deleteBookmarkButton(theme, true));
     section.append(heading);
     const grid = el('div', 'bookmark-grid');
-    for (const site of sites.slice(0, sitesPerTheme)) {
+    for (const site of preview ? sites : sites.slice(0, sitesPerTheme)) {
       const target = preview?.control(theme, site, sites.length);
       const tile = bookmarkTile(site, null, target?.button);
-      if (target) preview.dropZone(tile, target);
       tile.setAttribute('aria-label', site.title + ' · ' + theme.title);
-      grid.append(tile);
+      if (target) {
+        const entry = el('div', 'bookmark-editor-entry');
+        entry.append(tile, deleteBookmarkButton(site, false));
+        preview.dropZone(entry, target);
+        grid.append(entry);
+      } else grid.append(tile);
+    }
+    if (preview ? sites.length < sitesPerTheme : theme === firstVacancy) {
+      const label = 'Добавить сайт в тему «' + theme.title + '»';
+      const add = btn(label, '', () => editCustomBookmark(theme.id, !preview), 'bookmark-tile bookmark-add-site');
+      const mark = el('span', 'bookmark-mark', '＋');
+      mark.setAttribute('aria-hidden', 'true');
+      add.append(mark);
+      grid.append(add);
     }
     section.append(grid);
     panel.append(section);
   }
 }
-function editCustomBookmark(categoryId) {
+function editCustomBookmark(categoryId, fromWidget = false) {
   const addingSite = Boolean(categoryId);
   modal(addingSite ? 'Добавить сайт' : 'Новая тема', 'bookmark-add');
-  const back = btn('К настройкам закладок', '‹', () => showSettings('bookmarks'), 'settings-back');
-  dialog.querySelector('header').prepend(back);
+  dialog.querySelector('.settings-back')?.remove();
+  if (!fromWidget) {
+    const back = btn('К настройкам закладок', '‹', () => showSettings('bookmarks'), 'settings-back');
+    dialog.querySelector('header').prepend(back);
+  }
   const title = input();
   title.maxLength = 100;
   title.required = !addingSite;
@@ -410,8 +431,9 @@ function editCustomBookmark(categoryId) {
     submit.disabled = false;
     if (!title.isConnected || !dialog.open) return;
     if ((addingSite ? state.siteTiles : state.linkCategories).some(item => item.id === id)) {
-      showSettings('bookmarks');
+      if (fromWidget) dialog.close();
+      else showSettings('bookmarks');
     }
   });
-  title.focus();
+  (addingSite ? address : title).focus();
 }
