@@ -41,6 +41,41 @@ test('OAuth callbacks, first import, second installation, changes and logout', a
   assert.deepEqual(await profile(second,{set:{},remove:['gntd.tasks.a']}),{'gntd.theme':'light','gntd.engine':'Яндекс'});
   assert.deepEqual(await profile(yandex,{seed:{}}),{});
   assert.equal((await post('/profile',{set:{'gntd.weather':{}},remove:[]},first)).status,400);
+  await t.test('original wallpaper bytes are isolated, deduplicated and pruned with their final reference', async ()=>{
+    const original = Buffer.from([255,216,255,0,42,228,255,217]);
+    const key = createHash('sha256').update(original).digest('hex');
+    const route = '/wallpaper-files/'+key;
+    const file = (method,token,body)=>request(origin+route,{
+      method, headers:{Authorization:'Bearer '+token,'Content-Type':'application/octet-stream'}, body
+    });
+    assert.equal((await file('GET','invalid')).status,401);
+    assert.equal((await file('PUT',first,Buffer.from('другой файл'))).status,400);
+    assert.equal((await file('GET',first)).status,404);
+    assert.equal((await file('PUT',first,original)).status,409);
+    const firstItem = 'gntd.wallpaperItem.first';
+    const secondItem = 'gntd.wallpaperItem.second';
+    const item = {originalKey:key};
+    await profile(first,{set:{[firstItem]:item,[secondItem]:item,'gntd.wallpaperActive':'first'},remove:[]});
+    assert.equal((await profile(second,{set:{},remove:[]}))[firstItem].originalKey,key);
+    assert.equal((await file('PUT',first,original)).status,204);
+    assert.equal((await file('PUT',second,original)).status,204);
+    const downloaded = await file('GET',second);
+    assert.equal(downloaded.status,200);
+    assert.equal(downloaded.headers.get('content-type'),'application/octet-stream');
+    assert.deepEqual(Buffer.from(await downloaded.arrayBuffer()),original);
+    assert.equal((await file('GET',yandex)).status,404);
+    assert.equal((await file('DELETE',yandex)).status,204);
+    assert.equal((await file('GET',first)).status,200);
+
+    assert.equal((await file('DELETE',first)).status,409);
+    await profile(first,{set:{},remove:[firstItem]});
+    assert.equal((await file('GET',second)).status,200);
+    await profile(second,{set:{'gntd.wallpaperActive':null},remove:[secondItem]});
+    assert.equal((await file('GET',first)).status,404);
+    assert.equal((await file('PUT',first,original)).status,409);
+    assert.equal((await file('DELETE',second)).status,204);
+    assert.equal((await file('GET',first)).status,404);
+  });
   await request(origin+'/session',{method:'DELETE',headers:{Authorization:'Bearer '+first}});
   assert.equal((await post('/profile',{set:{},remove:[]},first)).status,401);
 });

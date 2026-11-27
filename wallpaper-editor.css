@@ -1,0 +1,62 @@
+#wallpaper-background {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+#wallpaper-background::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: black;
+  opacity: var(--wallpaper-dark,0);
+}
+#wallpaper-image {
+  position: absolute;
+  inset: 0;
+  background: center / cover no-repeat;
+}
+.wallpaper-section, .wallpaper-controls, .wallpaper-gallery { display: grid; gap: 10px; }
+.wallpaper-section :is(h4,p) { margin: 0; }
+.wallpaper-add { position: relative; width: fit-content; padding: 7px 11px; cursor: pointer; border: 1px solid var(--line); border-radius: 11px; background: var(--field); }
+.wallpaper-add .wallpaper-file { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+.wallpaper-add:focus-within { outline: 2px solid var(--soft); outline-offset: 2px; }
+.wallpaper-edit { justify-self: start; }
+.wallpaper-photo { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 6px; }
+.wallpaper-photo-choice { display: flex; align-items: center; min-width: 0; gap: 8px; text-align: start; }
+.wallpaper-photo-choice[aria-pressed=true] { border-color: var(--soft); }
+.wallpaper-photo-choice img { width: 48px; height: 32px; border-radius: 5px; object-fit: cover; }
+.wallpaper-photo-choice span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+dialog[data-view=wallpaper-editor] { margin: auto clamp(8px,2vw,24px) auto auto; width: min(350px,calc(100vw - 16px)); max-height: calc(100dvh - 16px); padding: 16px; }
+dialog[data-view=wallpaper-editor]::backdrop { background: transparent; backdrop-filter: none; }
+.wallpaper-hint { margin: 0; color: var(--muted); }
+.wallpaper-mirror { display: flex; align-items: center; gap: 8px; }
+.wallpaper-slider { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 2px 8px; }
+.wallpaper-slider input { grid-column: 1 / -1; width: 100%; height: 22px; margin: 0; padding: 0; accent-color: var(--accent); }
+.wallpaper-value { color: var(--muted); font-variant-numeric: tabular-nums; }
+.wallpaper-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.wallpaper-apply { background: var(--accent); color: var(--accent-ink,white); }
+
+#wallpaper-parallax {
+  position: absolute;
+  inset: -2.5%;
+  background-position: inherit;
+}
+#wallpaper-parallax > div {
+  position: absolute;
+  inset: 0;
+  background: center / cover no-repeat;
+  background-position: inherit;
+  will-change: transform;
+}
+.wallpaper-parallax-background {
+  transform: translate(
+    calc(var(--parallax-x, 0px) * -.35),
+    calc(var(--parallax-y, 0px) * -.35)
+  );
+}
+.wallpaper-parallax-foreground {
+  transform: translate(var(--parallax-x, 0px), var(--parallax-y, 0px));
+}
+.wallpaper-parallax-options:not([hidden]) { display: grid; gap: 4px; }
+.wallpaper-parallax-status { margin: 0; color: var(--muted); }
