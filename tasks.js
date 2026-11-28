@@ -6,14 +6,17 @@ let tasksGroupingMinute;
 
 function tasks(n) {
   n.classList.add('tasks-widget');
+  const first = taskActiveOrder(state.tasks)[0];
   const actions = el('div','tasks-card-actions');
   const open = btn('Открыть задачи','↗',()=>openTasks({},'open'),'mini');
   open.dataset.taskCardControl = 'open';
-  const add = btn('Быстро добавить задачу','＋',()=>openTaskQuickAdd(),'mini');
-  add.dataset.taskCardControl = 'add';
-  actions.append(open,add);
+  actions.append(open);
+  if (first) {
+    const add = btn('Быстро добавить задачу','＋',()=>openTaskQuickAdd(),'mini');
+    add.dataset.taskCardControl = 'add';
+    actions.append(add);
+  }
   n.append(cap('tasks',actions));
-  const first = taskActiveOrder(state.tasks)[0];
   if (state.tasks.some(record=>record.kind === 'focus')) {
     const done = el('div','tasks-card-done');
     const status = el('strong','tasks-card-status','Готово');
@@ -21,15 +24,17 @@ function tasks(n) {
     done.append(status);
     const next = first
       ? btn('Выбрать следующую','Выбрать следующую',()=>openTasks({mode:'choose'},'next'),'tasks-link')
-      : btn('Добавить задачу','Добавить задачу',()=>openTaskQuickAdd('', 'next'),'tasks-link');
+      : btn('Добавить задачу','＋ Добавить',()=>openTaskQuickAdd('', 'next'),'tasks-link');
     next.dataset.taskCardControl = 'next';
     done.append(next);
     n.append(done);
   } else if (first) {
     n.append(taskRow(first,'widget'));
   } else {
-    const empty = btn('Добавить задачу','Добавить задачу',()=>openTaskQuickAdd('', 'empty'),'tasks-link');
-    empty.dataset.taskCardControl = 'empty';
+    const empty = el('div','tasks-empty-state');
+    const add = btn('Добавить задачу','＋ Добавить',()=>openTaskQuickAdd('','empty'),'tasks-empty-add');
+    add.dataset.taskCardControl = 'empty';
+    empty.append(el('strong','','Нет активных задач'),add);
     n.append(empty);
   }
 }
@@ -285,14 +290,12 @@ function saveTask(item,values) {
   });
 }
 
-function taskComposer({text = '',listId = '',onBack,onSave,onDetails}) {
-  const form = el('form','tasks-composer');
+function taskComposer({text = '',listId = '',onBack,onSave,onDetails,quick = false}) {
+  const form = el('form',quick ? 'tasks-composer tasks-composer-quick' : 'tasks-composer');
   form.dataset.taskList = listId;
-  const entry = el('div','tasks-compose-entry');
   const name = taskNameInput(text);
-  name.placeholder = 'Новая задача';
-  name.setAttribute('aria-label','Название новой задачи');
-  const add = el('button','tasks-primary','＋');
+  name.placeholder = quick ? 'Например, купить корм' : 'Новая задача';
+  const add = el('button','tasks-primary',quick ? 'Добавить' : '＋');
   add.type = 'submit';
   add.setAttribute('aria-label','Добавить задачу');
   const details = btn('Подробнее','Подробнее',()=>{
@@ -300,8 +303,16 @@ function taskComposer({text = '',listId = '',onBack,onSave,onDetails}) {
     openTaskEditor({text:name.value,listId,onBack});
   });
   details.dataset.taskFocus = 'add-details';
-  entry.append(name,add);
-  form.append(entry,details);
+  if (quick) {
+    const actions = el('div','tasks-editor-actions');
+    actions.append(details,add);
+    form.append(taskFormField('Название задачи',name),actions);
+  } else {
+    const entry = el('div','tasks-compose-entry');
+    name.setAttribute('aria-label','Название новой задачи');
+    entry.append(name,add);
+    form.append(entry,details);
+  }
   taskSubmit(form,add,async()=>{
     if (!name.value.trim()) {
       name.focus();
@@ -320,7 +331,7 @@ function openTaskQuickAdd(text = '',source = 'add') {
   tasksCardSource = source;
   modal('Новая задача','tasks-quick');
   let draft = text;
-  const composer = taskComposer({text,onSave:()=>dialog.close(),onDetails:value=>{draft = value},
+  const composer = taskComposer({text,quick:true,onSave:()=>dialog.close(),onDetails:value=>{draft = value},
     onBack:()=>openTaskQuickAdd(draft,source)});
   fields.append(composer);
   composer.querySelector('input').focus();

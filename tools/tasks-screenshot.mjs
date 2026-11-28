@@ -1,4 +1,4 @@
-export async function captureTasks(page,worker,output) {
+export async function captureTasks(page,worker,output,{quick = false} = {}) {
   const morning = new Date();
   morning.setHours(9,0,0,0);
   const yesterday = new Date(morning);
@@ -19,10 +19,15 @@ export async function captureTasks(page,worker,output) {
   },{today:day(morning),overdue:day(yesterday)});
   const origin = 'chrome-extension://'+new URL(worker.url()).hostname;
   await page.goto(origin+'/newtab.html');
-  await page.getByRole('button',{name:'Открыть задачи',exact:true}).click();
-  const dialog = page.locator('dialog[data-view=tasks]');
-  await dialog.getByRole('heading',{name:'Просроченные',exact:true}).waitFor();
-  await dialog.getByRole('heading',{name:'Сегодня',exact:true}).waitFor();
-  await dialog.getByRole('heading',{name:'Без даты',exact:true}).waitFor();
+  if (quick) {
+    await page.getByRole('button',{name:'Быстро добавить задачу',exact:true}).click();
+    await page.getByLabel('Название задачи',{exact:true}).fill('Забрать заказ');
+  } else {
+    await page.getByRole('button',{name:'Открыть задачи',exact:true}).click();
+    const dialog = page.locator('dialog[data-view=tasks]');
+    await dialog.getByRole('heading',{name:'Просроченные',exact:true}).waitFor();
+    await dialog.getByRole('heading',{name:'Сегодня',exact:true}).waitFor();
+    await dialog.getByRole('heading',{name:'Без даты',exact:true}).waitFor();
+  }
   await page.screenshot({path:output,animations:'disabled'});
 }

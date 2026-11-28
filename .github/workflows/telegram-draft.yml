@@ -109,7 +109,7 @@ jobs:
             const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
             if (process.env.TASKS_SCREENSHOT === 'true') {
               const { captureTasks } = await import('./extension/tools/tasks-screenshot.mjs');
-              await captureTasks(await context.newPage(),worker,'todayis-activity.png');
+              await captureTasks(await context.newPage(),worker,'todayis-activity.png',{quick:true});
               return;
             }
             if (process.env.BOOKMARKS_SCREENSHOT === 'true') {
