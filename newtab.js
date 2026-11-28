@@ -16,7 +16,7 @@ function day(d){return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),S
 function defaults(id){return {size:['greeting','search'].includes(id)?'lg':'sm',rows:['bookmarks','calendar','tasks'].includes(id)?2:1}}
 const sizeLimits = {
   greeting:[2,1], clock:[2,1], search:[3,1,1], weather:[2,1],
-  bookmarks:[2,2], calendar:[2,2], tasks:[2,2], quote:[1,1],
+  bookmarks:[2,2], calendar:[2,2], tasks:[2,1], quote:[1,1],
   music:[2,1], system:[1,1]
 };
 function sizesFor(id) {
