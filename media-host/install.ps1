@@ -1,4 +1,4 @@
-﻿param([string]$ExtensionId, [string]$BuildOnly)
+param([string]$ExtensionId, [string]$BuildOnly)
 $ErrorActionPreference = 'Stop'
 $framework = "$env:windir\Microsoft.NET\Framework64\v4.0.30319"
 if (!(Test-Path "$framework\csc.exe")) { $framework = "$env:windir\Microsoft.NET\Framework\v4.0.30319" }

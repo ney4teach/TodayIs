@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Сохранить настройки — Today Is</title>
+  <link rel="icon" href="icons/glass.svg">
+  <link rel="stylesheet" href="newtab.css">
+  <link rel="stylesheet" href="settings-backup.css">
+  <script defer src="settings-backup.js"></script>
+  <script defer src="export-settings.js"></script>
+</head>
+<body class="backup-export-page">
+  <main class="settings-backup backup-export-card">
+    <img src="icons/glass.svg" width="40" height="40" alt="Today Is">
+    <h1>Ваш Today Is. В одном файле.</h1>
+    <p>Сохраните настройки из этой установки перед сменой папки расширения.</p>
+    <p>В файл войдут оформление, виджеты, смены календаря, свои закладки, обои и сохранённые раскладки.</p>
+    <button type="button" id="export-settings">↓ Скачать настройки</button>
+    <output id="export-status" role="status"></output>
+    <small>Затем установите расширение из новой папки и откройте Настройки → Синхронизация → Загрузить с ПК. Вход в аккаунт и подключение музыкального приложения выполняются отдельно.</small>
+  </main>
+</body>
+</html>

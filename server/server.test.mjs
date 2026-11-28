@@ -39,8 +39,23 @@ test('OAuth callbacks, first import, second installation, changes and logout', a
   assert.deepEqual(await profile(second,{seed:{'gntd.theme':'dark'}}),seed);
   await profile(first,{set:{'gntd.engine':'Яндекс'},remove:[]});
   assert.deepEqual(await profile(second,{set:{},remove:['gntd.tasks.a']}),{'gntd.theme':'light','gntd.engine':'Яндекс'});
-  assert.deepEqual(await profile(yandex,{seed:{}}),{});
+  const settings={
+    'gntd.widgetScale':90,'gntd.bookmarkSource':'custom','gntd.bookmarkFolder':'',
+    'gntd.clock':{},'gntd.musicTint':false,'gntd.accentMode':'manual','gntd.accentColor':'blue',
+    'gntd.positions':{clock:{x:1,y:2}},'gntd.futurePreference':true,
+    'gntd.linkCategories.work':{id:'work',title:'Работа'},
+    'gntd.siteTiles.docs':{id:'docs',categoryId:'work',url:'https://example.org/'},
+  };
+  assert.deepEqual(await profile(yandex,{seed:settings}),settings);
+  const secondYandex=await login('yandex');
+  assert.deepEqual(await profile(secondYandex,{seed:{}}),settings);
+  const updated={...settings,'gntd.widgetScale':110};
+  delete updated['gntd.siteTiles.docs'];
+  assert.deepEqual(await profile(yandex,{set:{'gntd.widgetScale':110},remove:['gntd.siteTiles.docs']}),updated);
+  assert.deepEqual(await profile(secondYandex,{set:{},remove:[]}),updated);
   assert.equal((await post('/profile',{set:{'gntd.weather':{}},remove:[]},first)).status,400);
+  assert.equal((await post('/profile',{set:{'gntd.__proto__':{}},remove:[]},first)).status,400);
+  assert.equal((await post('/profile',{set:{},remove:[['gntd.theme']]},first)).status,400);
   await request(origin+'/session',{method:'DELETE',headers:{Authorization:'Bearer '+first}});
   assert.equal((await post('/profile',{set:{},remove:[]},first)).status,401);
 });

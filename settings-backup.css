@@ -1,0 +1,11 @@
+.settings-backup{display:grid;gap:12px;padding:20px;border:1px solid var(--line);border-radius:18px;background:var(--field);margin-top:16px}
+.settings-backup h3,.settings-backup p{margin:0}
+.settings-backup p,.settings-backup small{line-height:1.5}
+.backup-actions{display:flex;flex-wrap:wrap;gap:10px}
+.backup-actions button{flex:1 1 180px;min-height:44px}
+.settings-backup button:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.settings-backup [role=status]:empty{display:none}
+.settings-backup [role=status]{overflow-wrap:anywhere}
+.backup-export-page{display:grid;place-items:center;min-height:100dvh;height:auto;overflow:auto;padding:24px;box-sizing:border-box}
+.backup-export-card{width:min(100%,540px);box-sizing:border-box;padding:32px;margin:0}
+.backup-export-card h1{font-size:1.65rem;line-height:1.2;margin:4px 0}
