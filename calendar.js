@@ -11,6 +11,7 @@ function calendarMonth(selectedMonth, onMove, onDate, selected) {
     btn('Следующий месяц','›',()=>move(1),'mini'));
   const grid = el('div','calendar-grid');
   const today = day(new Date());
+  const withTasks = new Set(taskItems(state.tasks).map(task=>task.date));
   for (const name of ['Пн','Вт','Ср','Чт','Пт','Сб','Вс']) grid.append(el('small','',name));
   for (let i=0;i<(ym.getDay()+6)%7;i++) grid.append(el('span'));
   for (let i=1;i<=new Date(ym.getFullYear(),ym.getMonth()+1,0).getDate();i++) {
@@ -20,10 +21,13 @@ function calendarMonth(selectedMonth, onMove, onDate, selected) {
     const hasExtra = shifts.some(({shift})=>shift.kind === 'extra');
     const kind = primary ?? (hasExtra ? 'extra' : null);
     const descriptions = [...shifts.map(({shift})=>[shiftTypes[shift.kind][0],shiftTime(shift)].filter(Boolean).join(' ')),...events.map(event=>event.text)];
+    const hasTasks = withTasks.has(date);
+    if (hasTasks) descriptions.push('Есть задачи');
     const cell = btn([calendarDateLabel(date),...descriptions].join(' · '),'',()=>onDate(date),'calendar-day');
     if (kind) cell.classList.add('calendar-type-'+kind);
     if (primary && hasExtra) cell.classList.add('calendar-with-extra');
     if (events.length) cell.classList.add('calendar-with-event');
+    if (hasTasks) cell.classList.add('calendar-with-task');
     if (date === today) cell.setAttribute('aria-current','date');
     if (selected) cell.setAttribute('aria-pressed',String(date === selected));
     cell.append(el('span','',i));
@@ -64,8 +68,10 @@ function openCalendar(date, focus = '') {
   overview.append(legend);
   const details = el('section','calendar-details');
   const {shifts,events} = calendarEntries(state.events,date);
+  const tasksForDate = taskItems(state.tasks).filter(task=>task.date === date)
+    .sort((a,b)=>Number(a.done) - Number(b.done) || taskByTime(a,b));
   details.append(el('h3','',calendarDateLabel(date)));
-  if (!shifts.length && !events.length) details.append(el('p','calendar-muted','На этот день записей пока нет.'));
+  if (!shifts.length && !events.length && !tasksForDate.length) details.append(el('p','calendar-muted','На этот день записей пока нет.'));
   for (const entry of shifts) {
     const {shift,schedule} = entry;
     const row = el('div','calendar-entry');
@@ -89,6 +95,7 @@ function openCalendar(date, focus = '') {
   actions.append(btn('Добавить подработку','＋ Подработка',()=>shiftForm(date,{shift:{kind:'extra'}})),
     btn('Добавить событие','＋ Событие',()=>calendarEventForm(date)));
   details.append(actions);
+  appendCalendarTasks(details,date,tasksForDate);
   body.append(overview,details);
   fields.append(body);
   const selectors = {date:'[aria-pressed="true"]',next:'[aria-label="Следующий месяц"]',

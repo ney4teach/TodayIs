@@ -16,6 +16,7 @@ on:
           - activity
           - music
           - bookmarks
+          - tasks
           - 'off'
       summary:
         description: Короткое описание для подписчиков, если нужно заменить текст из GitHub
@@ -61,13 +62,15 @@ jobs:
           const backup = /^settings\/config-backup(?:-|$)/.test(data.head?.ref || '');
           const dock = /^settings\/dock(?:-|$)/.test(data.head?.ref || '');
           const bookmarks = process.env.SCREENSHOT === 'bookmarks' || (process.env.SCREENSHOT === 'auto' && /^bookmarks\//.test(data.head?.ref || ''));
-          if (process.env.SCREENSHOT === 'auto' && !bookmarks && !music && !layout && !settings && !/^clock\/activity(?:-|$)/.test(data.head?.ref || '')) process.exit(0);
+          const tasks = process.env.SCREENSHOT === 'tasks' || (process.env.SCREENSHOT === 'auto' && data.head?.ref === 'codex/tasks-widget');
+          if (process.env.SCREENSHOT === 'auto' && !tasks && !bookmarks && !music && !layout && !settings && !/^clock\/activity(?:-|$)/.test(data.head?.ref || '')) process.exit(0);
           if (source[1] && (data.head?.repo?.full_name !== 'ney4teach/TodayIs' || !/^[a-f0-9]{40}$/.test(data.head.sha))) {
             throw new Error('Выберите PR из ветки репозитория Today Is.');
           }
           const ref = source[1] ? data.head.sha : 'refs/tags/' + data.tag_name;
           if (/\s/.test(ref)) throw new Error('Некорректная версия расширения.');
           appendFileSync(process.env.GITHUB_OUTPUT, 'activity=true\nref=' + ref + '\nlayout=' + layout + '\nmusic=' + music + '\nsettings=' + settings + '\ndock=' + dock + '\nbookmarks=' + bookmarks + '\nbackup=' + backup + '\n');
+          appendFileSync(process.env.GITHUB_OUTPUT, 'tasks=' + tasks + '\n');
           NODE
       - uses: actions/checkout@v4
         if: steps.version.outputs.activity == 'true'
@@ -84,6 +87,7 @@ jobs:
           BACKUP_SCREENSHOT: ${{ steps.version.outputs.backup }}
           DOCK_SCREENSHOT: ${{ steps.version.outputs.dock }}
           BOOKMARKS_SCREENSHOT: ${{ steps.version.outputs.bookmarks }}
+          TASKS_SCREENSHOT: ${{ steps.version.outputs.tasks }}
         run: |
           npm install --no-save --no-package-lock playwright@1.58.2
           npx playwright install --with-deps chromium
@@ -103,6 +107,11 @@ jobs:
           async function capture() {
           try {
             const worker = context.serviceWorkers()[0] ?? await context.waitForEvent('serviceworker');
+            if (process.env.TASKS_SCREENSHOT === 'true') {
+              const { captureTasks } = await import('./extension/tools/tasks-screenshot.mjs');
+              await captureTasks(await context.newPage(),worker,'todayis-activity.png');
+              return;
+            }
             if (process.env.BOOKMARKS_SCREENSHOT === 'true') {
               await worker.evaluate(async () => {
                 const themes = {
